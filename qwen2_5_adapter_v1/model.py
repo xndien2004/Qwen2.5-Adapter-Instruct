@@ -482,8 +482,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
             self.config.adapter_layer, self.config.adapter_len, self.config.hidden_size
         ).unsqueeze(1)
 
-        bsz = hidden_states.shape[0]
-        prompt = prompt.expand(-1, bsz, -1, -1)
+        # bsz = hidden_states.shape[0]
+        # prompt = prompt.expand(-1, bsz, -1, -1)
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
