@@ -1,8 +1,8 @@
-
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union, Dict
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, DynamicCache, SlidingWindowCache, StaticCache
@@ -13,23 +13,22 @@ from transformers.modeling_outputs import (
     BaseModelOutputWithPast,
     CausalLMOutputWithPast,
 )
-from transformers.   import ROPE_INIT_FUNCTIONS
-from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS, PreTrainedModel
+from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
+from transformers.modeling_utils import  PreTrainedModel
 from transformers.processing_utils import Unpack
 from transformers.utils import (
     LossKwargs,
     logging,
     replace_return_docstrings,
 )
-from transformers.utils.deprecation import deprecate_kwarg
-from .configuration_qwen2 import Qwen2Config
+from transformers.utils.deprecation import deprecate_kwarg 
 
+from config import Qwen2AdapterV1Config
 
 logger = logging.get_logger(__name__)
-
-_CHECKPOINT_FOR_DOC = "meta-qwen2/Qwen2-2-7b-hf"
-_CONFIG_FOR_DOC = "Qwen2Config"
-
+ 
+_CONFIG_FOR_DOC = "Qwen2AdapterV1Config"
+ALL_ATTENTION_FUNCTIONS: Dict[str, Callable] = {}
 
 class Qwen2MLP(nn.Module):
     def __init__(self, config):
@@ -49,8 +48,8 @@ class Qwen2MLP(nn.Module):
 
 def rotate_half(x):
     """Rotates half the hidden dims of the input."""
-    x1 = x[transformers., : x.shape[-1] // 2]
-    x2 = x[transformers., x.shape[-1] // 2 :]
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2 :]
     return torch.cat((-x2, x1), dim=-1)
 
 
@@ -101,6 +100,9 @@ def eager_attention_forward(
     attention_mask: Optional[torch.Tensor],
     scaling: float,
     dropout: float = 0.0,
+    adapter: Optional[torch.Tensor] = None, # add adapter
+    gate: Optional[torch.Tensor] = None, # add gate
+    config: Optional[Qwen2AdapterV1Config] = None,
     **kwargs,
 ):
     key_states = repeat_kv(key, module.num_key_value_groups)
@@ -111,7 +113,16 @@ def eager_attention_forward(
         causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
         attn_weights = attn_weights + causal_mask
 
-    attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
+    if adapter is not None:
+        attn_weights = torch.cat(
+                [
+                    gate.tanh().half() * F.softmax(attn_weights[:, :, :, :config.adapter_len].float(), dim=-1).type_as(query),
+                    F.softmax(attn_weights[:, :, :, config.adapter_len:].float(), dim=-1).type_as(query),
+                ],
+                dim=-1,
+            )
+    else:
+        attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
     attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
     attn_output = torch.matmul(attn_weights, value_states)
     attn_output = attn_output.transpose(1, 2).contiguous()
@@ -122,9 +133,10 @@ def eager_attention_forward(
 class Qwen2Attention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
-    def __init__(self, config: Qwen2Config, layer_idx: int):
+    def __init__(self, config: Qwen2AdapterV1Config, layer_idx: int):
         super().__init__()
         self.config = config
+        self.n_local_heads = config.num_attention_heads
         self.layer_idx = layer_idx
         self.head_dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
         self.num_key_value_groups = config.num_attention_heads // config.num_key_value_heads
@@ -136,8 +148,7 @@ class Qwen2Attention(nn.Module):
         self.v_proj = nn.Linear(config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True)
         self.o_proj = nn.Linear(config.num_attention_heads * self.head_dim, config.hidden_size, bias=False)
 
-        if config.adapter_len > 0 and config.adapter_layer > 0:
-            self.adapter_query = nn.Embedding(config.adapter_len * config.adapter_layer, config.hidden_size)
+        self.gate_adapter = torch.nn.Parameter(torch.zeros(1, self.n_local_heads, 1, 1))
 
     def forward(
         self,
@@ -150,6 +161,7 @@ class Qwen2Attention(nn.Module):
         **kwargs: Unpack[FlashAttentionKwargs],
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         input_shape = hidden_states.shape[:-1]
+        bsz, seq_len = input_shape
         hidden_shape = (*input_shape, -1, self.head_dim)
 
         query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
@@ -184,10 +196,17 @@ class Qwen2Attention(nn.Module):
 
         # If there is an adapter, we will add the adapter to the key and value
         if adapter is not None:
-            adapter_k = self.k_proj(adapter).view(hidden_shape).transpose(1, 2)
-            adapter_v = self.v_proj(adapter).view(hidden_shape).transpose(1, 2)
-            key_states = torch.cat([key_states, adapter_k], dim=1)
-            value_states = torch.cat([value_states, adapter_v], dim=1)
+            adapter_len = adapter.shape[1]
+            adapter_k = self.k_proj(adapter).view(1, adapter_len, self.config.num_key_value_heads, self.head_dim)
+            adapter_k = adapter_k.permute(0, 2, 1, 3).expand(bsz, -1, -1, -1)
+            
+            adapter_v = self.v_proj(adapter).view(1, adapter_len, self.config.num_key_value_heads, self.head_dim) 
+            adapter_v = adapter_v.permute(0, 2, 1, 3).expand(bsz, -1, -1, -1)
+            key_states = torch.cat([adapter_k, key_states], dim=2)
+            value_states = torch.cat([adapter_v, value_states], dim=2)
+    
+            extra_mask = torch.zeros(bsz, 1, seq_len, adapter_len).to(attention_mask)
+            attention_mask = torch.cat([extra_mask, attention_mask], dim=-1)
 
         attn_output, attn_weights = attention_interface(
             self,
@@ -198,6 +217,9 @@ class Qwen2Attention(nn.Module):
             dropout=0.0 if not self.training else self.attention_dropout,
             scaling=self.scaling,
             sliding_window=sliding_window,  # main diff with Llama
+            adapter = adapter, # add adapter
+            gate = self.gate_adapter, # add gate
+            config=self.config,
             **kwargs,
         )
 
@@ -227,7 +249,7 @@ class Qwen2RMSNorm(nn.Module):
 
 
 class Qwen2DecoderLayer(nn.Module):
-    def __init__(self, config: Qwen2Config, layer_idx: int):
+    def __init__(self, config: Qwen2AdapterV1Config, layer_idx: int):
         super().__init__()
         self.hidden_size = config.hidden_size
         self.self_attn = Qwen2Attention(config=config, layer_idx=layer_idx)
@@ -286,7 +308,7 @@ class Qwen2DecoderLayer(nn.Module):
 
 
 class Qwen2RotaryEmbedding(nn.Module):
-    def __init__(self, config: Qwen2Config, device=None):
+    def __init__(self, config: Qwen2AdapterV1Config, device=None):
         super().__init__()
         # BC: "rope_type" was originally "type"
         if hasattr(config, "rope_scaling") and config.rope_scaling is not None:
@@ -348,7 +370,7 @@ class Qwen2RotaryEmbedding(nn.Module):
 
 
 class Qwen2PreTrainedModel(PreTrainedModel):
-    config_class = Qwen2Config
+    config_class = Qwen2AdapterV1Config
     base_model_prefix = "model"
     supports_gradient_checkpointing = True
     _no_split_modules = ["Qwen2DecoderLayer"]
@@ -377,10 +399,10 @@ class Qwen2Model(Qwen2PreTrainedModel):
     Transformer decoder consisting of *config.num_hidden_layers* layers. Each layer is a [`Qwen2DecoderLayer`]
 
     Args:
-        config: Qwen2Config
+        config: Qwen2AdapterV1Config
     """
 
-    def __init__(self, config: Qwen2Config):
+    def __init__(self, config: Qwen2AdapterV1Config):
         super().__init__(config)
         # self.config = config
         self.padding_idx = config.pad_token_id
@@ -661,7 +683,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         device: torch.device,
         cache_position: torch.Tensor,
         batch_size: int,
-        config: Qwen2Config,
+        config: Qwen2AdapterV1Config,
         past_key_values: Cache,
     ):
         """
@@ -683,7 +705,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 Indices depicting the position of the input sequence tokens in the sequence.
             batch_size (`torch.Tensor`):
                 Batch size.
-            config (`Qwen2Config`):
+            config (`Qwen2AdapterV1Config`):
                 The model's configuration class
             past_key_values (`Cache`):
                 The cache class that is being used currently to generate
@@ -722,10 +744,10 @@ class Qwen2Model(Qwen2PreTrainedModel):
         return causal_mask
 
 
-class KwargsForCausalLM(FlashAttentionKwargs, LossKwargs): transformers.
+class KwargsForCausalLM(FlashAttentionKwargs, LossKwargs): ...
 
 
-class Qwen2ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
+class Qwen2AdapterV1ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
     _tied_weights_keys = ["lm_head.weight"]
     _tp_plan = {"lm_head": "colwise_rep"}
     _pp_plan = {"lm_head": (["hidden_states"], ["logits"])}

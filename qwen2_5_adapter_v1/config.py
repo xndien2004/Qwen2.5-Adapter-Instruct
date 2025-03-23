@@ -1,19 +1,3 @@
-# coding=utf-8
-# Copyright 2024 The Qwen team, Alibaba Group and the HuggingFace Inc. team. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""Qwen2 model configuration"""
-
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_rope_utils import rope_config_validation
 from transformers.utils import logging
@@ -22,7 +6,7 @@ from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
 
-class Qwen2Config(PretrainedConfig):
+class Qwen2AdapterV1Config(PretrainedConfig):
     r"""
     This is the configuration class to store the configuration of a [`Qwen2Model`]. It is used to instantiate a
     Qwen2 model according to the specified arguments, defining the model architecture. Instantiating a configuration
@@ -112,6 +96,10 @@ class Qwen2Config(PretrainedConfig):
             The number of layers that use SWA (Sliding Window Attention). The bottom layers use SWA while the top use full attention.
         attention_dropout (`float`, *optional*, defaults to 0.0):
             The dropout ratio for the attention probabilities.
+        adapter_len (`int`, *optional*, defaults to 64):
+            The length of the adapter sequence.
+        adapter_layer (`int`, *optional*, defaults to 2):
+            The number of layers that use adapter.
 
     ```python
     >>> from transformers import Qwen2Model, Qwen2Config
@@ -196,7 +184,7 @@ class Qwen2Config(PretrainedConfig):
         # Validate the correctness of rotary position embeddings parameters
         # BC: if there is a 'type' field, move it to 'rope_type'.
         if self.rope_scaling is not None and "type" in self.rope_scaling:
-            self.rope_scaling["rope_type"] = self.rope_scaling["type"]
+            self.rope_scaling["rope_type"] = self.rope_scaling.get("type")
         rope_config_validation(self)
 
         super().__init__(
