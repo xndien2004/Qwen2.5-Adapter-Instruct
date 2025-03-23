@@ -193,16 +193,19 @@ class Qwen2Attention(nn.Module):
 
         # If there is an adapter, we will add the adapter to the key and value
         if adapter is not None:
+            bsz = hidden_states.shape[0]
             adapter_len = adapter.shape[1]
-            adapter_k = self.k_proj(adapter).view(1, adapter_len, self.config.num_key_value_heads, self.head_dim)
-            adapter_k = adapter_k.permute(0, 2, 1, 3).expand(bsz, -1, -1, -1)
-            
-            adapter_v = self.v_proj(adapter).view(1, adapter_len, self.config.num_key_value_heads, self.head_dim) 
-            adapter_v = adapter_v.permute(0, 2, 1, 3).expand(bsz, -1, -1, -1)
+
+            adapter_k = self.k_proj(adapter).view(bsz, adapter_len, self.config.num_key_value_heads, self.head_dim)
+            adapter_k = adapter_k.permute(0, 2, 1, 3)
+
+            adapter_v = self.v_proj(adapter).view(bsz, adapter_len, self.config.num_key_value_heads, self.head_dim)
+            adapter_v = adapter_v.permute(0, 2, 1, 3)
+
             key_states = torch.cat([adapter_k, key_states], dim=2)
             value_states = torch.cat([adapter_v, value_states], dim=2)
-    
-            extra_mask = torch.zeros(bsz, 1, seq_len, adapter_len).to(attention_mask)
+
+            extra_mask = torch.zeros(bsz, 1, seq_len, adapter_len, device=attention_mask.device, dtype=attention_mask.dtype)
             attention_mask = torch.cat([extra_mask, attention_mask], dim=-1)
 
         attn_output, attn_weights = attention_interface(
