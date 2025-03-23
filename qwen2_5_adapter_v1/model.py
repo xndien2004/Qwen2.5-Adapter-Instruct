@@ -102,7 +102,7 @@ def eager_attention_forward(
     dropout: float = 0.0,
     adapter: Optional[torch.Tensor] = None, # add adapter
     gate: Optional[torch.Tensor] = None, # add gate
-    config: Optional[Qwen2AdapterV1Config] = None,
+    adapter_len: Optional[int] = None, # add adapter_len
     **kwargs,
 ):
     key_states = repeat_kv(key, module.num_key_value_groups)
@@ -114,8 +114,8 @@ def eager_attention_forward(
         attn_weights = attn_weights + causal_mask
 
     if adapter is not None:
-        soft_adapter = F.softmax(attn_weights[:, :, :, :config.adapter_len].float(), dim=-1)
-        soft_main = F.softmax(attn_weights[:, :, :, config.adapter_len:].float(), dim=-1)
+        soft_adapter = F.softmax(attn_weights[:, :, :, :adapter_len].float(), dim=-1)
+        soft_main = F.softmax(attn_weights[:, :, :, adapter_len:].float(), dim=-1)
         gated_adapter = gate.tanh().to(query.dtype) * soft_adapter.to(query.dtype)
         attn_weights = torch.cat([gated_adapter, soft_main.to(query.dtype)], dim=-1)
     else:
@@ -219,7 +219,7 @@ class Qwen2Attention(nn.Module):
             sliding_window=sliding_window,  # main diff with Llama
             adapter = adapter, # add adapter
             gate = self.gate_adapter, # add gate
-            config=self.config,
+            adapter_len=adapter_len,
             **kwargs,
         )
 
@@ -479,12 +479,12 @@ class Qwen2Model(Qwen2PreTrainedModel):
 
         # create position embeddings to be shared across the decoder layers
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
-        prompt = self.adapter_query.weight.reshape(
+        adapter = self.adapter_query.weight.reshape(
             self.config.adapter_layer, self.config.adapter_len, self.config.hidden_size
         ).unsqueeze(1)
 
         bsz = hidden_states.shape[0]
-        prompt = prompt.expand(-1, bsz, -1, -1)
+        adapter = adapter.expand(-1, bsz, -1, -1)
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
@@ -501,7 +501,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 use_cache=use_cache,
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
-                prompt=None,
+                adapter=None,
                 gradient_checkpointing=self.gradient_checkpointing,
                 flash_attn_kwargs=flash_attn_kwargs,
                 output_hidden_states=output_hidden_states,
@@ -519,7 +519,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 use_cache=use_cache,
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
-                prompt=prompt,
+                adapter=adapter,
                 gradient_checkpointing=self.gradient_checkpointing,
                 flash_attn_kwargs=flash_attn_kwargs,
                 output_hidden_states=output_hidden_states,
@@ -551,7 +551,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
             use_cache,
             cache_position,
             position_embeddings,
-            prompt=None,
+            adapter=None,
             gradient_checkpointing=False,
             flash_attn_kwargs=None,
             output_hidden_states=False,
@@ -571,7 +571,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 use_cache,
                 cache_position,
                 position_embeddings,
-                prompt[layer_index] if prompt is not None else None,
+                adapter[layer_index].half() if adapter is not None else None,
             )
         else:
             layer_outputs = decoder_layer(
@@ -583,7 +583,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 use_cache=use_cache,
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
-                adapter=prompt[layer_index] if prompt is not None else None,
+                adapter=adapter[layer_index].half() if adapter is not None else None,
                 **(flash_attn_kwargs or {}),
             )
 
