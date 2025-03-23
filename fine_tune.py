@@ -2,8 +2,7 @@ import argparse
 import pandas as pd
 from transformers import (
     TrainingArguments,
-    Trainer,
-    DataCollatorForLanguageModeling
+    Trainer
 )
 import os
 import logging
@@ -11,12 +10,9 @@ import logging
 from data_utils import FactVerificationDataset
 from model_qwen2_5_adapter import Qwen2_5_Adapter
 
-# Suppress most XLA and plugin registry warnings
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 os.environ["DISABLE_TF_PLUGIN_LOADING"] = "1"
 os.environ["XLA_FLAGS"] = "--xla_gpu_cuda_data_dir="
-
-# Suppress HuggingFace logging
 logging.getLogger("transformers").setLevel(logging.ERROR)
 
 def parse_args():
