@@ -51,7 +51,7 @@ def get_training_args(args) -> TrainingArguments:
         gradient_checkpointing=True,
         max_grad_norm=1.0,
         dataloader_pin_memory=False,
-        dataloader_num_workers=0,
+        dataloader_num_workers=2,
         report_to=["none"],
     )
 
