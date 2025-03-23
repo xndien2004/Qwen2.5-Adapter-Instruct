@@ -3,17 +3,10 @@ import pandas as pd
 from transformers import (
     TrainingArguments,
     Trainer
-)
-import os
-import logging
-
+) 
 from data_utils import FactVerificationDataset
 from model_qwen2_5_adapter import Qwen2_5_Adapter
-
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-os.environ["DISABLE_TF_PLUGIN_LOADING"] = "1"
-os.environ["XLA_FLAGS"] = "--xla_gpu_cuda_data_dir="
-logging.getLogger("transformers").setLevel(logging.ERROR)
+ 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune Qwen2 Adapter Model")
