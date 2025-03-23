@@ -14,8 +14,12 @@ def preprocess_fact_verification(
 ) -> Dict:
     roles = {"user": "<|im_start|>user", "assistant": "<|im_start|>assistant"}
 
-    im_start = tokenizer.im_start_id
-    im_end = tokenizer.im_end_id
+    if hasattr(tokenizer, 'im_start_id'):
+        im_start = tokenizer.im_start_id
+        im_end = tokenizer.im_end_id
+    else:
+        im_start = tokenizer.convert_tokens_to_ids("<|im_start|>")
+        im_end = tokenizer.convert_tokens_to_ids("<|im_end|>")
     nl_tokens = tokenizer('\n').input_ids
     _system = tokenizer('system').input_ids + nl_tokens
     _user = tokenizer('user').input_ids + nl_tokens
