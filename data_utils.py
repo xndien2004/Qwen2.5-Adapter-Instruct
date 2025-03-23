@@ -11,8 +11,7 @@ class FactVerificationDataset(Dataset):
     
     def __getitem__(self, idx):
         item = self.data.iloc[idx]
-        
-        # Format chat template cho Qwen
+
         messages = [
             {"role": "system", "content": "You are an AI assistant specializing in verifying the accuracy of information in Vietnamese."},
             {"role": "user", "content": f"""You are tasked with verifying the accuracy of a statement based on the provided context in Vietnamese.
@@ -26,29 +25,46 @@ NEI (Not Enough Information): If the context does not provide sufficient informa
 Your answer must include the classification label and a complete sentence from the context as evidence to justify your decision.
 Note: The evidence must be a full sentence, not a partial sentence or a fragment.
 Answer format:
-Answer: The claim is classified as {item['verdict']}. The evidence is: {item['evidence']}.
+Answer: The claim is classified as <LABEL>. The evidence is: <EVIDENCE>.
 
 Provided data:
 Context: {item['context']}
 Claim: {item['claim']}
 """}
         ]
- 
-        prompt = self.tokenizer.apply_chat_template(
+
+        label_text = f"Answer: The claim is classified as {item['verdict']}. The evidence is: {item['evidence']}."
+        full_prompt = self.tokenizer.apply_chat_template(
             messages,
-            tokenize=False,  
-            add_generation_prompt=True  
-        )
+            tokenize=False,
+            add_generation_prompt=True
+        ) + label_text
 
         encoding = self.tokenizer(
-            prompt,
+            full_prompt,
             max_length=self.max_length,
             padding="max_length",
             truncation=True,
             return_tensors="pt"
         )
-        
+
+        input_ids = encoding["input_ids"].squeeze()
+        attention_mask = encoding["attention_mask"].squeeze()
+        labels = input_ids.clone()
+
+        prompt_only = self.tokenizer(
+            self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True),
+            max_length=self.max_length,
+            truncation=True,
+            padding="max_length",
+            return_tensors="pt"
+        )["input_ids"].squeeze()
+
+        prompt_len = (prompt_only != self.tokenizer.pad_token_id).sum().item()
+        labels[:prompt_len] = -100
+
         return {
-            "input_ids": encoding["input_ids"].squeeze(),
-            "attention_mask": encoding["attention_mask"].squeeze()
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "labels": labels
         }

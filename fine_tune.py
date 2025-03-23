@@ -22,10 +22,8 @@ def parse_args():
     parser.add_argument("--gradient_accumulation_steps", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--learning_rate", type=float, default=2e-4)
-    parser.add_argument("--max_steps", type=int, default=1000)
-    parser.add_argument("--eval_steps", type=int, default=100)
-    parser.add_argument("--save_steps", type=int, default=100)
     return parser.parse_args()
+
 
 
 
@@ -38,11 +36,8 @@ def get_training_args(args) -> TrainingArguments:
         learning_rate=args.learning_rate,
         bf16=True,
         fp16=False,
-        evaluation_strategy="steps",
-        eval_steps=args.eval_steps,
-        save_strategy="steps",
-        save_steps=args.save_steps,
-        max_steps=args.max_steps,
+        evaluation_strategy="epoch",    
+        save_strategy="epoch",           
         save_total_limit=3,
         logging_steps=10,
         optim="adamw_torch",
@@ -52,8 +47,9 @@ def get_training_args(args) -> TrainingArguments:
         max_grad_norm=1.0,
         dataloader_pin_memory=False,
         dataloader_num_workers=2,
-        report_to=["none"],
+        report_to=["none"]
     )
+
 
 
 def main():
@@ -73,14 +69,14 @@ def main():
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=val_dataset,
-        data_collator=DataCollatorForLanguageModeling(tokenizer, mlm=False)
+        eval_dataset=val_dataset
     )
 
     model.config.use_cache = False
 
     trainer.train()
     trainer.save_model(args.output_dir)
+    tokenizer.save_pretrained(args.output_dir)
     print(f"Model saved to {args.output_dir}")
 
 
