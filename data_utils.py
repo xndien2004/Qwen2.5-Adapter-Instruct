@@ -1,18 +1,10 @@
 from torch.utils.data import Dataset
-import torch
 
 class FactVerificationDataset(Dataset):
     def __init__(self, data, tokenizer, max_length=1024):
         self.data = data
         self.tokenizer = tokenizer
         self.max_length = max_length
-        
-        # Định nghĩa mapping cho labels
-        self.label_map = {
-            "SUPPORTED": 0,
-            "REFUTED": 1,
-            "NEI": 2
-        }
         
     def __len__(self):
         return len(self.data)
@@ -56,21 +48,7 @@ Claim: {item['claim']}
             return_tensors="pt"
         )
         
-        target_text = f"Answer: The claim is classified as {item['verdict']}. The evidence is: {item['evidence']}"
-        target_encoding = self.tokenizer(
-            target_text,
-            max_length=self.max_length,
-            padding="max_length",
-            truncation=True,
-            return_tensors="pt"
-        )
-        
-        labels = target_encoding["input_ids"].squeeze()
-        
-        labels[labels == self.tokenizer.pad_token_id] = -100
-        
         return {
             "input_ids": encoding["input_ids"].squeeze(),
-            "attention_mask": encoding["attention_mask"].squeeze(),
-            "labels": labels
+            "attention_mask": encoding["attention_mask"].squeeze()
         }
