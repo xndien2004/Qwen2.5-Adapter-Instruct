@@ -23,7 +23,7 @@ from transformers.utils import (
 )
 from transformers.utils.deprecation import deprecate_kwarg 
 
-from config import Qwen2AdapterV1Config
+from .config import Qwen2AdapterV1Config
 
 logger = logging.get_logger(__name__)
  

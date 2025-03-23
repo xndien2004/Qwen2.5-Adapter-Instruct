@@ -6,8 +6,8 @@ from transformers import (
     DataCollatorForLanguageModeling
 )
 
-from data_utils import FactVerificationDataset
-from model_qwen2_5_adapter import Qwen2_5_Adapter
+from .data_utils import FactVerificationDataset
+from .model_qwen2_5_adapter import Qwen2_5_Adapter
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune Qwen2 Adapter Model")
