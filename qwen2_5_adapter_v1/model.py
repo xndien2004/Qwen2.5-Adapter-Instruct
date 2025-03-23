@@ -192,9 +192,9 @@ class Qwen2Attention(nn.Module):
                 attention_interface = ALL_ATTENTION_FUNCTIONS[self.config._attn_implementation]
 
         # If there is an adapter, we will add the adapter to the key and value
+        adapter_len = adapter.shape[1] if adapter is not None else 0
         if adapter is not None:
             bsz = hidden_states.shape[0]
-            adapter_len = adapter.shape[1]
 
             adapter_k = self.k_proj(adapter).view(bsz, adapter_len, self.config.num_key_value_heads, self.head_dim)
             adapter_k = adapter_k.permute(0, 2, 1, 3)
