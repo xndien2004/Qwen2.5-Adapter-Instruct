@@ -14,6 +14,7 @@ def parse_args():
     parser.add_argument("--model_name", type=str, default="Qwen/Qwen2.5-1.5B-Instruct", help="Pretrained model name")
     parser.add_argument("--adapter_layer", type=int, default=4, help="Adapter layer")
     parser.add_argument("--adapter_len", type=int, default=64, help="Adapter length")
+    parser.add_argument("--max_length", type=int, default=1024, help="Max input length")
     parser.add_argument("--train_file", type=str, default="/kaggle/input/semviqa-data/data/evi/viwiki_train.csv", help="Path to training data")
     parser.add_argument("--val_file", type=str, default="/kaggle/input/semviqa-data/data/evi/viwiki_test.csv", help="Path to validation data")
     parser.add_argument("--output_dir", type=str, default="1_5B_adapter4", help="Directory to save model checkpoints")
@@ -63,8 +64,8 @@ def main():
     # Load datasets
     train_df = pd.read_csv(args.train_file)
     val_df = pd.read_csv(args.val_file)
-    train_dataset = FactVerificationDataset(train_df, tokenizer)
-    val_dataset = FactVerificationDataset(val_df, tokenizer)
+    train_dataset = FactVerificationDataset(train_df, tokenizer, max_length=args.max_length)
+    val_dataset = FactVerificationDataset(val_df, tokenizer, max_length=args.max_length)
 
     training_args = get_training_args(args)
 
