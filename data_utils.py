@@ -79,7 +79,7 @@ def preprocess_fact_verification(
         targets_list.append(target[:max_len])
 
     input_ids_tensor = torch.tensor(input_ids_list, dtype=torch.int)
-    targets_tensor = torch.tensor(targets_list, dtype=torch.int)
+    targets_tensor = torch.tensor(targets_list, dtype=torch.long)
 
     return dict(
         input_ids=input_ids_tensor,
