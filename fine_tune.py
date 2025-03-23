@@ -42,7 +42,7 @@ def get_training_args(args) -> TrainingArguments:
         optim="adamw_torch",
         lr_scheduler_type="cosine",
         warmup_ratio=0.1,
-        gradient_checkpointing=True,
+        gradient_checkpointing=False,
         max_grad_norm=1.0,
         dataloader_pin_memory=False,
         dataloader_num_workers=2,
