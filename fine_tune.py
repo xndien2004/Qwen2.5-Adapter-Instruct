@@ -1,4 +1,5 @@
 import argparse
+import torch
 import pandas as pd
 from transformers import (
     TrainingArguments,
@@ -72,6 +73,7 @@ def main():
     )
 
     model.config.use_cache = False
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
 
     trainer.train()
     trainer.save_model(args.output_dir)
