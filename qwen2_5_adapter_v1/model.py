@@ -860,7 +860,11 @@ class Qwen2AdapterV1ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
         loss = None
         if labels is not None:
             loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
-
+        if loss is not None:
+            print("loss.requires_grad:", loss.requires_grad)
+            for name, param in self.named_parameters():
+                if param.requires_grad:
+                    print("🔍", name, "grad:", param.grad is not None)
         if not return_dict:
             output = (logits,) + outputs[1:]
             return (loss,) + output if loss is not None else output
