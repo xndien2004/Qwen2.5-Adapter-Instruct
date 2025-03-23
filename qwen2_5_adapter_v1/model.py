@@ -114,15 +114,14 @@ def eager_attention_forward(
         attn_weights = attn_weights + causal_mask
 
     if adapter is not None:
-        attn_weights = torch.cat(
-                [
-                    gate.tanh().half() * F.softmax(attn_weights[:, :, :, :config.adapter_len].float(), dim=-1).type_as(query),
-                    F.softmax(attn_weights[:, :, :, config.adapter_len:].float(), dim=-1).type_as(query),
-                ],
-                dim=-1,
-            )
+        soft_adapter = F.softmax(attn_weights[:, :, :, :config.adapter_len].float(), dim=-1)
+        soft_main = F.softmax(attn_weights[:, :, :, config.adapter_len:].float(), dim=-1)
+        attn_weights = torch.cat([
+            gate.tanh() * soft_adapter.to(query.dtype),
+            soft_main.to(query.dtype)
+        ], dim=-1)
     else:
-        attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
+        attn_weights = F.softmax(attn_weights.float(), dim=-1).to(query.dtype)
     attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
     attn_output = torch.matmul(attn_weights, value_states)
     attn_output = attn_output.transpose(1, 2).contiguous()
@@ -482,6 +481,9 @@ class Qwen2Model(Qwen2PreTrainedModel):
         prompt = self.adapter_query.weight.reshape(
             self.config.adapter_layer, self.config.adapter_len, self.config.hidden_size
         ).unsqueeze(1)
+
+        bsz = hidden_states.shape[0]
+        prompt = prompt.expand(-1, bsz, -1, -1)
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
