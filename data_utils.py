@@ -50,6 +50,9 @@ Claim: {claim}
         prompt_len = (prompt_ids != tokenizer.pad_token_id).sum().item()
         labels[:prompt_len] = IGNORE_TOKEN_ID
 
+        print("🔍 input_ids:", input_ids)
+        print("🔍 labels:", labels)
+
         input_ids_list.append(input_ids)
         attention_mask_list.append(attention_mask)
         label_ids_list.append(labels)
