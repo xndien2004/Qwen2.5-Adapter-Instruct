@@ -580,7 +580,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 use_cache=use_cache,
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
-                prompt=prompt[layer_index] if prompt is not None else None,
+                adapter=prompt[layer_index] if prompt is not None else None,
                 **(flash_attn_kwargs or {}),
             )
 
