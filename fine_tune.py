@@ -59,8 +59,8 @@ def main():
     # Load datasets
     train_df = pd.read_csv(args.train_file)
     val_df = pd.read_csv(args.val_file)
-    train_dataset = FactVerificationDataset(train_df, tokenizer, max_length=args.max_length)
-    val_dataset = FactVerificationDataset(val_df, tokenizer, max_length=args.max_length)
+    train_dataset = FactVerificationDataset(train_df, tokenizer, max_len=args.max_length)
+    val_dataset = FactVerificationDataset(val_df, tokenizer, max_len=args.max_length)
 
     training_args = get_training_args(args)
 
