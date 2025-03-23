@@ -1,0 +1,4 @@
+bitsandbytes==0.45.3
+transformers==4.50.0
+datasets==2.20.0
+pandas==2.2.2
