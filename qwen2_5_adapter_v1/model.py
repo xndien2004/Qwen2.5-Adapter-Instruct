@@ -116,10 +116,8 @@ def eager_attention_forward(
     if adapter is not None:
         soft_adapter = F.softmax(attn_weights[:, :, :, :config.adapter_len].float(), dim=-1)
         soft_main = F.softmax(attn_weights[:, :, :, config.adapter_len:].float(), dim=-1)
-        attn_weights = torch.cat([
-            gate.tanh() * soft_adapter.to(query.dtype),
-            soft_main.to(query.dtype)
-        ], dim=-1)
+        gated_adapter = gate.tanh().to(query.dtype) * soft_adapter.to(query.dtype)
+        attn_weights = torch.cat([gated_adapter, soft_main.to(query.dtype)], dim=-1)
     else:
         attn_weights = F.softmax(attn_weights.float(), dim=-1).to(query.dtype)
     attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
@@ -482,8 +480,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
             self.config.adapter_layer, self.config.adapter_len, self.config.hidden_size
         ).unsqueeze(1)
 
-        # bsz = hidden_states.shape[0]
-        # prompt = prompt.expand(-1, bsz, -1, -1)
+        bsz = hidden_states.shape[0]
+        prompt = prompt.expand(-1, bsz, -1, -1)
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
@@ -570,7 +568,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 use_cache,
                 cache_position,
                 position_embeddings,
-                prompt[layer_index] if prompt is not None else None,
+                # prompt[layer_index] if prompt is not None else None,
             )
         else:
             layer_outputs = decoder_layer(
