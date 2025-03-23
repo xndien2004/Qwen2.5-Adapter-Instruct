@@ -568,7 +568,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 use_cache,
                 cache_position,
                 position_embeddings,
-                # prompt[layer_index] if prompt is not None else None,
+                prompt[layer_index] if prompt is not None else None,
             )
         else:
             layer_outputs = decoder_layer(
