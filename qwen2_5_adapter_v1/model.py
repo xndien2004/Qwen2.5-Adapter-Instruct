@@ -114,6 +114,12 @@ def eager_attention_forward(
         attn_weights = attn_weights + causal_mask
  
     if adapter is not None:
+        print(f"Adapter: {adapter.shape}")
+        print(f"Gate: {gate.shape}")
+        print(torch.isnan(adapter).any())  # Kiểm tra NaN trong adapter
+        print(torch.isinf(adapter).any())  # Kiểm tra Inf trong adapter
+        print(torch.isnan(gate).any())  # Kiểm tra NaN trong gate
+        print(torch.isinf(gate).any())  # Kiểm tra Inf trong gate
         soft_adapter = F.softmax(attn_weights[:, :, :, :adapter_len].float(), dim=-1)
         soft_main = F.softmax(attn_weights[:, :, :, adapter_len:].float(), dim=-1)
         gated_adapter = gate.tanh().to(query.dtype) * soft_adapter.to(query.dtype)
