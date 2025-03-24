@@ -149,14 +149,14 @@ def eager_attention_forward(
 
     # Debug: Kiểm tra giá trị của attn_weights
     # breakpoint()  # Kiểm tra attn_weights tại đây
-    print(f"attn_weights before adapter: {attn_weights}")
+    print(f"attn_weights before adapter: {attn_weights.shape}")
     print(torch.isnan(attn_weights).any())  # Kiểm tra NaN
     print(torch.isinf(attn_weights).any())  # Kiểm tra Inf
 
     if adapter is not None:
         # Debug: Kiểm tra adapter và gate trước khi tính toán softmax
-        print(f"Adapter: {adapter}")
-        print(f"Gate: {gate}")
+        print(f"Adapter: {adapter.shape}")
+        print(f"Gate: {gate.shape}")
         print(torch.isnan(adapter).any())  # Kiểm tra NaN trong adapter
         print(torch.isinf(adapter).any())  # Kiểm tra Inf trong adapter
         print(torch.isnan(gate).any())  # Kiểm tra NaN trong gate
@@ -166,7 +166,7 @@ def eager_attention_forward(
         soft_main = F.softmax(attn_weights[:, :, :, adapter_len:].float(), dim=-1)
 
         # Debug: Kiểm tra giá trị của soft_adapter và soft_main
-        print(f"soft_adapter: {soft_adapter}")
+        print(f"soft_adapter: {soft_adapter.shape}")
         print(f"soft_main: {soft_main}")
         print(torch.isnan(soft_adapter).any())  # Kiểm tra NaN trong soft_adapter
         print(torch.isinf(soft_adapter).any())  # Kiểm tra Inf trong soft_adapter
@@ -176,7 +176,7 @@ def eager_attention_forward(
         gated_adapter = gate.tanh().to(query.dtype) * soft_adapter.to(query.dtype)
         
         # Debug: Kiểm tra gated_adapter trước khi nối
-        print(f"gated_adapter: {gated_adapter}")
+        print(f"gated_adapter: {gated_adapter.shape}")
         print(torch.isnan(gated_adapter).any())  # Kiểm tra NaN trong gated_adapter
         print(torch.isinf(gated_adapter).any())  # Kiểm tra Inf trong gated_adapter
         
