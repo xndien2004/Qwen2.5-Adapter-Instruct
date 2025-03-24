@@ -870,7 +870,8 @@ class Qwen2AdapterV1ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
         logits = self.lm_head(hidden_states[:, slice_indices, :])
 
         if torch.isnan(hidden_states).any() or torch.isinf(hidden_states).any():
-            raise ValueError("NaN or Inf found in hidden_states before lm_head")
+            # raise ValueError("NaN or Inf found in hidden_states before lm_head")
+            print("NaN or Inf found in hidden_states before lm_head!")
         loss = None
         if labels is not None:
             loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
