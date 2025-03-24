@@ -1,6 +1,7 @@
 import argparse
 import torch
 import pandas as pd
+import numpy as np
 from transformers import (
     TrainingArguments,
     Trainer
@@ -54,6 +55,9 @@ def get_training_args(args) -> TrainingArguments:
 
 def main():
     args = parse_args()
+    seed = 42
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
     model, tokenizer = Qwen2_5_Adapter(args.model_name, adapter_layer=args.adapter_layer, adapter_len=args.adapter_len)
 
