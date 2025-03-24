@@ -113,6 +113,7 @@ def eager_attention_forward(
         causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
         attn_weights = attn_weights + causal_mask
 
+    breakpoint()
     if adapter is not None:
         soft_adapter = F.softmax(attn_weights[:, :, :, :adapter_len].float(), dim=-1)
         soft_main = F.softmax(attn_weights[:, :, :, adapter_len:].float(), dim=-1)
@@ -120,6 +121,7 @@ def eager_attention_forward(
         attn_weights = torch.cat([gated_adapter, soft_main.to(query.dtype)], dim=-1)
     else:
         attn_weights = F.softmax(attn_weights.float(), dim=-1).to(query.dtype)
+    breakpoint()
     attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
     attn_output = torch.matmul(attn_weights, value_states)
     attn_output = attn_output.transpose(1, 2).contiguous()
@@ -857,6 +859,9 @@ class Qwen2AdapterV1ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
         logits = self.lm_head(hidden_states[:, slice_indices, :])
 
+        if torch.isnan(logits).any() or torch.isinf(logits).any():
+            print("NaN or Inf found in logits")
+            breakpoint()
         loss = None
         if labels is not None:
             loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
