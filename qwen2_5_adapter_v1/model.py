@@ -204,6 +204,8 @@ class Qwen2Attention(nn.Module):
 
             key_states = torch.cat([adapter_k, key_states], dim=2)
             value_states = torch.cat([adapter_v, value_states], dim=2)
+            print("key_states:", torch.isnan(key_states).any())
+            print("value_states:", torch.isnan(value_states).any())
 
             extra_mask = torch.zeros(bsz, 1, seq_len, adapter_len, device=attention_mask.device, dtype=attention_mask.dtype)
             attention_mask = torch.cat([extra_mask, attention_mask], dim=-1)
@@ -572,8 +574,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
         ):
         if adapter is not None:
             print("adapter in process layer:", torch.isnan(adapter).any())
-        else:
-            print("adapter is None in process layer")
+        # else:
+        #     print("adapter is None in process layer")
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
