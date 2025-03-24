@@ -417,7 +417,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         self.adapter_query = nn.Embedding(config.adapter_len * config.adapter_layer, config.hidden_size)
         self.gradient_checkpointing = False
 
-        nn.init.normal_(self.adapter_query.weight, mean=0.0, std=0.01)  
+        nn.init.zeros_(self.adapter_query.weight)
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -866,9 +866,8 @@ class Qwen2AdapterV1ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
         logits = self.lm_head(hidden_states[:, slice_indices, :])
 
-        if torch.isnan(logits).any() or torch.isinf(logits).any():
-            print("NaN or Inf found in logits")
-            # breakpoint()
+        if torch.isnan(hidden_states).any() or torch.isinf(hidden_states).any():
+            raise ValueError("NaN or Inf found in hidden_states before lm_head")
         loss = None
         if labels is not None:
             loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
