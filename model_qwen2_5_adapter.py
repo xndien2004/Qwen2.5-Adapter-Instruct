@@ -20,12 +20,12 @@ def Qwen2_5_Adapter(model_name: str, adapter_len: int = 64, adapter_layer: int =
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 
-    # for param in model.parameters():
-    #     param.requires_grad = False
+    for param in model.parameters():
+        param.requires_grad = False
 
-    # for name, param in model.named_parameters():
-    #     if "adapter_query" in name or "gate_adapter" in name:
-    #         param.requires_grad = True
+    for name, param in model.named_parameters():
+        if "adapter_query" in name or "gate_adapter" in name:
+            param.requires_grad = True
 
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model loaded. Trainable parameters: {total_params}")
