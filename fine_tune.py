@@ -4,11 +4,19 @@ import pandas as pd
 import numpy as np
 from transformers import (
     TrainingArguments,
-    Trainer
+    Trainer,
+    TrainerCallback
 ) 
 from data_utils import FactVerificationDataset
-from model_qwen2_5_adapter import Qwen2_5_Adapter
- 
+from model_qwen2_5_adapter import Qwen2_5_Adapter 
+
+class GradientClippingCallback(TrainerCallback): 
+    def __init__(self, max_norm=0.5):
+        self.max_norm = max_norm
+
+    def on_step_end(self, args, state, control, model=None, **kwargs):
+        if model is not None:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=self.max_norm)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune Qwen2 Adapter Model")
@@ -70,7 +78,8 @@ def main():
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=val_dataset
+        eval_dataset=val_dataset,
+        callbacks=[GradientClippingCallback(max_norm=0.5)]
     )
 
     model.config.use_cache = False
