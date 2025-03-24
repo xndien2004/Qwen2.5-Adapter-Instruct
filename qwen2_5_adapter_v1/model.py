@@ -488,6 +488,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         # create position embeddings to be shared across the decoder layers
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
+        self.adapter_query = self.adapter_query.clamp(-1, 1)
         if torch.isnan(self.adapter_query.weight).any() or torch.isinf(self.adapter_query.weight).any():
             print("NaN or Inf found in adapter_query weights!")
             # self.adapter_query.weight.data = torch.nan_to_num(self.adapter_query.weight.data)
