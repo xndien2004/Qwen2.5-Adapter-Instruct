@@ -198,6 +198,7 @@ class Qwen2Attention(nn.Module):
 
             adapter_k = self.k_proj(adapter).view(bsz, adapter_len, self.config.num_key_value_heads, self.head_dim)
             adapter_k = adapter_k.permute(0, 2, 1, 3)
+            print("adapter_k:", torch.isnan(adapter_k).any())
 
             adapter_v = self.v_proj(adapter).view(bsz, adapter_len, self.config.num_key_value_heads, self.head_dim)
             adapter_v = adapter_v.permute(0, 2, 1, 3)
