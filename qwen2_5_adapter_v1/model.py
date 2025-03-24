@@ -185,7 +185,7 @@ def eager_attention_forward(
         attn_weights = F.softmax(attn_weights.float(), dim=-1).to(query.dtype)
 
     # Debug: Kiểm tra attn_weights sau khi softmax và gating
-    print(f"attn_weights after adapter: {attn_weights}")
+    print(f"attn_weights after adapter: {attn_weights.shape}")
     print(torch.isnan(attn_weights).any())  # Kiểm tra NaN sau softmax
     print(torch.isinf(attn_weights).any())  # Kiểm tra Inf sau softmax
 
@@ -250,14 +250,14 @@ class Qwen2Attention(nn.Module):
             sliding_window = self.config.sliding_window
 
         attention_interface: Callable = eager_attention_forward
-        if self.config._attn_implementation != "eager":
-            if self.config._attn_implementation == "sdpa" and kwargs.get("output_attentions", False):
-                logger.warning_once(
-                    "`torch.nn.functional.scaled_dot_product_attention` does not support `output_attentions=True`. Falling back to "
-                    'eager attention. This warning can be removed using the argument `attn_implementation="eager"` when loading the model.'
-                )
-            else:
-                attention_interface = ALL_ATTENTION_FUNCTIONS[self.config._attn_implementation]
+        # if self.config._attn_implementation != "eager":
+        #     if self.config._attn_implementation == "sdpa" and kwargs.get("output_attentions", False):
+        #         logger.warning_once(
+        #             "`torch.nn.functional.scaled_dot_product_attention` does not support `output_attentions=True`. Falling back to "
+        #             'eager attention. This warning can be removed using the argument `attn_implementation="eager"` when loading the model.'
+        #         )
+        #     else:
+        #         attention_interface = ALL_ATTENTION_FUNCTIONS[self.config._attn_implementation]
 
         # If there is an adapter, we will add the adapter to the key and value
         adapter_len = adapter.shape[1] if adapter is not None else 0
