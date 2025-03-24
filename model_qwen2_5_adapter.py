@@ -16,7 +16,7 @@ def Qwen2_5_Adapter(model_name: str, adapter_len: int = 64, adapter_layer: int =
         ignore_mismatched_sizes=True,
         torch_dtype=torch.float16
     ).to("cuda")
-    model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True).to("cuda")
+    # model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True).to("cuda")
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 
