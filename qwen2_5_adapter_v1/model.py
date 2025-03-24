@@ -480,36 +480,15 @@ class Qwen2Model(Qwen2PreTrainedModel):
 
         # create position embeddings to be shared across the decoder layers
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
-        # adapter = self.adapter_query.weight.reshape(
-        #     self.config.adapter_layer, self.config.adapter_len, self.config.hidden_size
-        # ).unsqueeze(1)
-
-        # bsz = hidden_states.shape[0]
-        # adapter = adapter.expand(-1, bsz, -1, -1)
-        # print(f"adapter shape: {adapter.shape}, "
-        #     f"NaN: {torch.isnan(adapter).any()}, Inf: {torch.isinf(adapter).any()}")
-
-        # Trước dòng 488, thêm các lệnh print để kiểm tra giá trị
-        print(f"adapter_query initial weights: {self.adapter_query.weight}")
-        print(f"adapter_query shape: {self.adapter_query.weight.shape}")
-
-        # Đảm bảo adapter_query không có giá trị NaN hoặc Inf
-        # if torch.isnan(self.adapter_query.weight).any() or torch.isinf(self.adapter_query.weight).any():
-        #     raise ValueError("NaN hoặc Inf được tìm thấy trong adapter_query weights")
-
         adapter = self.adapter_query.weight.reshape(
             self.config.adapter_layer, self.config.adapter_len, self.config.hidden_size
         ).unsqueeze(1)
 
         bsz = hidden_states.shape[0]
         adapter = adapter.expand(-1, bsz, -1, -1)
-
-        # In giá trị của adapter sau khi reshape và expand
-        print(f"adapter sau reshape và expand: {adapter}")
-
-        # Kiểm tra lại giá trị NaN hoặc Inf
-        # if torch.isnan(adapter).any() or torch.isinf(adapter).any():
-        #     raise ValueError("NaN hoặc Inf được tìm thấy trong adapter sau reshape và expand")
+    
+        if torch.isnan(adapter).any() or torch.isinf(adapter).any():
+            raise ValueError("NaN hoặc Inf được tìm thấy trong adapter sau reshape và expand")
 
         print(f"adapter shape: {adapter.shape}, NaN: {torch.isnan(adapter).any()}, Inf: {torch.isinf(adapter).any()}")
 
