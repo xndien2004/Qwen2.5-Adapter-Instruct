@@ -198,8 +198,6 @@ class Qwen2Attention(nn.Module):
 
             adapter_k = self.k_proj(adapter).view(bsz, adapter_len, self.config.num_key_value_heads, self.head_dim)
             adapter_k = adapter_k.permute(0, 2, 1, 3)
-            print(f"adapter_k shape: {adapter_k.shape}, "
-            f"NaN in adapter_k: {torch.isnan(adapter_k).any()}, Inf in adapter_k: {torch.isinf(adapter_k).any()}")
 
             adapter_v = self.v_proj(adapter).view(bsz, adapter_len, self.config.num_key_value_heads, self.head_dim)
             adapter_v = adapter_v.permute(0, 2, 1, 3)
@@ -487,6 +485,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
 
         bsz = hidden_states.shape[0]
         adapter = adapter.expand(-1, bsz, -1, -1)
+        print(f"adapter shape: {adapter.shape}, "
+            f"NaN: {torch.isnan(adapter).any()}, Inf: {torch.isinf(adapter).any()}")
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
