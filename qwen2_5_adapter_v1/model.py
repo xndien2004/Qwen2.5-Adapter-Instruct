@@ -585,7 +585,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 use_cache,
                 cache_position,
                 position_embeddings,
-                adapter[layer_index],
+                adapter[layer_index] if adapter is not None else None,
             )
         else:
             layer_outputs = decoder_layer(
@@ -597,7 +597,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 use_cache=use_cache,
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
-                adapter=adapter[layer_index],
+                adapter=adapter[layer_index] if adapter is not None else None,
                 **(flash_attn_kwargs or {}),
             )
 
