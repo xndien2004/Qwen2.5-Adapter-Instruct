@@ -134,6 +134,7 @@ class Qwen2Attention(nn.Module):
         super().__init__()
         self.config = config
         self.layer_idx = layer_idx
+        self.n_local_heads = config.num_attention_heads
         self.head_dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
         self.num_key_value_groups = config.num_attention_heads // config.num_key_value_heads
         self.scaling = self.head_dim**-0.5
@@ -144,7 +145,7 @@ class Qwen2Attention(nn.Module):
         self.v_proj = nn.Linear(config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True)
         self.o_proj = nn.Linear(config.num_attention_heads * self.head_dim, config.hidden_size, bias=False)
 
-        self.gate_adapter = torch.nn.Parameter(torch.zeros(1, config.num_key_value_heads, 1, 1))
+        self.gate_adapter = torch.nn.Parameter(torch.zeros(1, self.n_local_heads, 1, 1))
 
     def forward(
         self,
