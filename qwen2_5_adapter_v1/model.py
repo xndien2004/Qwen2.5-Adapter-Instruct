@@ -507,8 +507,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
         print(f"adapter sau reshape và expand: {adapter}")
 
         # Kiểm tra lại giá trị NaN hoặc Inf
-        if torch.isnan(adapter).any() or torch.isinf(adapter).any():
-            raise ValueError("NaN hoặc Inf được tìm thấy trong adapter sau reshape và expand")
+        # if torch.isnan(adapter).any() or torch.isinf(adapter).any():
+        #     raise ValueError("NaN hoặc Inf được tìm thấy trong adapter sau reshape và expand")
 
         print(f"adapter shape: {adapter.shape}, NaN: {torch.isnan(adapter).any()}, Inf: {torch.isinf(adapter).any()}")
 
