@@ -528,6 +528,10 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 flash_attn_kwargs=flash_attn_kwargs,
                 output_hidden_states=output_hidden_states,
             )
+
+        print("hidden_states after not use adapter:", torch.isnan(hidden_states).any())
+        print("adapter_query after not use adapter:", torch.isnan(self.adapter_query.weight).any())
+        print("adapter after not use adapter:", torch.isnan(adapter).any())
         
         layer_index = 0
         for decoder_layer in self.layers[-1*self.config.adapter_layer:]:
