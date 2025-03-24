@@ -492,7 +492,6 @@ class Qwen2Model(Qwen2PreTrainedModel):
         bsz = hidden_states.shape[0]
         adapter = adapter.expand(-1, bsz, -1, -1)
 
-        adapter = adapter.clamp(min=-65500, max=65500)
         if torch.isnan(adapter).any() or torch.isinf(adapter).any():
             raise ValueError("NaN hoặc Inf được tìm thấy trong adapter sau reshape và expand")
 
