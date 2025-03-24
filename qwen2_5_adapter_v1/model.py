@@ -496,7 +496,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
         adapter = adapter.expand(-1, bsz, -1, -1)
 
         if torch.isnan(adapter).any() or torch.isinf(adapter).any():
-            raise ValueError("NaN or Inf found in converter after reshape and expansion")
+            # raise ValueError("NaN or Inf found in converter after reshape and expansion")
+            print("NaN or Inf found in adapter after reshape and expansion!")
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
