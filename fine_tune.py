@@ -42,7 +42,7 @@ def get_training_args(args) -> TrainingArguments:
         learning_rate=args.learning_rate,
         bf16=True,
         fp16=False,
-        evaluation_strategy="epoch",    
+        evaluation_strategy="epoch",  
         save_strategy="epoch",           
         save_total_limit=3,
         logging_steps=10,
