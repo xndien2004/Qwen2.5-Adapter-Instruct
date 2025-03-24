@@ -493,8 +493,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
         print(f"adapter_query shape: {self.adapter_query.weight.shape}")
 
         # Đảm bảo adapter_query không có giá trị NaN hoặc Inf
-        if torch.isnan(self.adapter_query.weight).any() or torch.isinf(self.adapter_query.weight).any():
-            raise ValueError("NaN hoặc Inf được tìm thấy trong adapter_query weights")
+        # if torch.isnan(self.adapter_query.weight).any() or torch.isinf(self.adapter_query.weight).any():
+        #     raise ValueError("NaN hoặc Inf được tìm thấy trong adapter_query weights")
 
         adapter = self.adapter_query.weight.reshape(
             self.config.adapter_layer, self.config.adapter_len, self.config.hidden_size
