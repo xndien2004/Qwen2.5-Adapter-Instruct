@@ -92,40 +92,6 @@ def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
     return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
 
 
-# def eager_attention_forward(
-#     module: nn.Module,
-#     query: torch.Tensor,
-#     key: torch.Tensor,
-#     value: torch.Tensor,
-#     attention_mask: Optional[torch.Tensor],
-#     scaling: float,
-#     dropout: float = 0.0,
-#     adapter: Optional[torch.Tensor] = None, # add adapter
-#     gate: Optional[torch.Tensor] = None, # add gate
-#     adapter_len: Optional[int] = None, # add adapter_len
-#     **kwargs,
-# ):
-#     key_states = repeat_kv(key, module.num_key_value_groups)
-#     value_states = repeat_kv(value, module.num_key_value_groups)
-
-#     attn_weights = torch.matmul(query, key_states.transpose(2, 3)) * scaling
-#     if attention_mask is not None:
-#         causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
-#         attn_weights = attn_weights + causal_mask
- 
-#     if adapter is not None:
-#         soft_adapter = F.softmax(attn_weights[:, :, :, :adapter_len].float(), dim=-1)
-#         soft_main = F.softmax(attn_weights[:, :, :, adapter_len:].float(), dim=-1)
-#         gated_adapter = gate.tanh().to(query.dtype) * soft_adapter.to(query.dtype)
-#         attn_weights = torch.cat([gated_adapter, soft_main.to(query.dtype)], dim=-1)
-#     else:
-#         attn_weights = F.softmax(attn_weights.float(), dim=-1).to(query.dtype) 
-#     attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
-#     attn_output = torch.matmul(attn_weights, value_states)
-#     attn_output = attn_output.transpose(1, 2).contiguous()
-
-#     return attn_output, attn_weights
-
 def eager_attention_forward(
     module: nn.Module,
     query: torch.Tensor,
@@ -146,52 +112,86 @@ def eager_attention_forward(
     if attention_mask is not None:
         causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
         attn_weights = attn_weights + causal_mask
-
-    # Debug: Kiểm tra giá trị của attn_weights
-    # breakpoint()  # Kiểm tra attn_weights tại đây
-    print(f"attn_weights before adapter: {attn_weights.shape}")
-    print(torch.isnan(attn_weights).any())  # Kiểm tra NaN
-    print(torch.isinf(attn_weights).any())  # Kiểm tra Inf
-
+ 
     if adapter is not None:
-        # Debug: Kiểm tra adapter và gate trước khi tính toán softmax
-        print(f"Adapter: {adapter.shape}")
-        print(f"Gate: {gate.shape}")
-        print(torch.isnan(adapter).any())  # Kiểm tra NaN trong adapter
-        print(torch.isinf(adapter).any())  # Kiểm tra Inf trong adapter
-        print(torch.isnan(gate).any())  # Kiểm tra NaN trong gate
-        print(torch.isinf(gate).any())  # Kiểm tra Inf trong gate
-        
         soft_adapter = F.softmax(attn_weights[:, :, :, :adapter_len].float(), dim=-1)
         soft_main = F.softmax(attn_weights[:, :, :, adapter_len:].float(), dim=-1)
-
-        # Debug: Kiểm tra giá trị của soft_adapter và soft_main
-        print(f"soft_adapter: {soft_adapter.shape}")
-        print(f"soft_main: {soft_main}")
-        print(torch.isnan(soft_adapter).any())  # Kiểm tra NaN trong soft_adapter
-        print(torch.isinf(soft_adapter).any())  # Kiểm tra Inf trong soft_adapter
-        print(torch.isnan(soft_main).any())  # Kiểm tra NaN trong soft_main
-        print(torch.isinf(soft_main).any())  # Kiểm tra Inf trong soft_main
-
         gated_adapter = gate.tanh().to(query.dtype) * soft_adapter.to(query.dtype)
-        
-        # Debug: Kiểm tra gated_adapter trước khi nối
-        print(f"gated_adapter: {gated_adapter.shape}")
-        print(torch.isnan(gated_adapter).any())  # Kiểm tra NaN trong gated_adapter
-        print(torch.isinf(gated_adapter).any())  # Kiểm tra Inf trong gated_adapter
-        
         attn_weights = torch.cat([gated_adapter, soft_main.to(query.dtype)], dim=-1)
     else:
-        attn_weights = F.softmax(attn_weights.float(), dim=-1).to(query.dtype)
-
-    # Debug: Kiểm tra attn_weights sau khi softmax và gating
-    print(f"attn_weights after adapter: {attn_weights.shape}")
-    print(torch.isnan(attn_weights).any())  # Kiểm tra NaN sau softmax
-    print(torch.isinf(attn_weights).any())  # Kiểm tra Inf sau softmax
-
+        attn_weights = F.softmax(attn_weights.float(), dim=-1).to(query.dtype) 
     attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
     attn_output = torch.matmul(attn_weights, value_states)
     attn_output = attn_output.transpose(1, 2).contiguous()
+
+    return attn_output, attn_weights
+
+# def eager_attention_forward(
+#     module: nn.Module,
+#     query: torch.Tensor,
+#     key: torch.Tensor,
+#     value: torch.Tensor,
+#     attention_mask: Optional[torch.Tensor],
+#     scaling: float,
+#     dropout: float = 0.0,
+#     adapter: Optional[torch.Tensor] = None, # add adapter
+#     gate: Optional[torch.Tensor] = None, # add gate
+#     adapter_len: Optional[int] = None, # add adapter_len
+#     **kwargs,
+# ):
+#     key_states = repeat_kv(key, module.num_key_value_groups)
+#     value_states = repeat_kv(value, module.num_key_value_groups)
+
+#     attn_weights = torch.matmul(query, key_states.transpose(2, 3)) * scaling
+#     if attention_mask is not None:
+#         causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
+#         attn_weights = attn_weights + causal_mask
+
+#     # Debug: Kiểm tra giá trị của attn_weights
+#     # breakpoint()  # Kiểm tra attn_weights tại đây
+#     print(f"attn_weights before adapter: {attn_weights.shape}")
+#     print(torch.isnan(attn_weights).any())  # Kiểm tra NaN
+#     print(torch.isinf(attn_weights).any())  # Kiểm tra Inf
+
+#     if adapter is not None:
+#         # Debug: Kiểm tra adapter và gate trước khi tính toán softmax
+#         print(f"Adapter: {adapter.shape}")
+#         print(f"Gate: {gate.shape}")
+#         print(torch.isnan(adapter).any())  # Kiểm tra NaN trong adapter
+#         print(torch.isinf(adapter).any())  # Kiểm tra Inf trong adapter
+#         print(torch.isnan(gate).any())  # Kiểm tra NaN trong gate
+#         print(torch.isinf(gate).any())  # Kiểm tra Inf trong gate
+        
+#         soft_adapter = F.softmax(attn_weights[:, :, :, :adapter_len].float(), dim=-1)
+#         soft_main = F.softmax(attn_weights[:, :, :, adapter_len:].float(), dim=-1)
+
+#         # Debug: Kiểm tra giá trị của soft_adapter và soft_main
+#         print(f"soft_adapter: {soft_adapter.shape}")
+#         print(f"soft_main: {soft_main}")
+#         print(torch.isnan(soft_adapter).any())  # Kiểm tra NaN trong soft_adapter
+#         print(torch.isinf(soft_adapter).any())  # Kiểm tra Inf trong soft_adapter
+#         print(torch.isnan(soft_main).any())  # Kiểm tra NaN trong soft_main
+#         print(torch.isinf(soft_main).any())  # Kiểm tra Inf trong soft_main
+
+#         gated_adapter = gate.tanh().to(query.dtype) * soft_adapter.to(query.dtype)
+        
+#         # Debug: Kiểm tra gated_adapter trước khi nối
+#         print(f"gated_adapter: {gated_adapter.shape}")
+#         print(torch.isnan(gated_adapter).any())  # Kiểm tra NaN trong gated_adapter
+#         print(torch.isinf(gated_adapter).any())  # Kiểm tra Inf trong gated_adapter
+        
+#         attn_weights = torch.cat([gated_adapter, soft_main.to(query.dtype)], dim=-1)
+#     else:
+#         attn_weights = F.softmax(attn_weights.float(), dim=-1).to(query.dtype)
+
+#     # Debug: Kiểm tra attn_weights sau khi softmax và gating
+#     print(f"attn_weights after adapter: {attn_weights.shape}")
+#     print(torch.isnan(attn_weights).any())  # Kiểm tra NaN sau softmax
+#     print(torch.isinf(attn_weights).any())  # Kiểm tra Inf sau softmax
+
+#     attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
+#     attn_output = torch.matmul(attn_weights, value_states)
+#     attn_output = attn_output.transpose(1, 2).contiguous()
 
 
 
