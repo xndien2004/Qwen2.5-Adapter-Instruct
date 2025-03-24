@@ -415,11 +415,10 @@ class Qwen2Model(Qwen2PreTrainedModel):
         self.norm = Qwen2RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.rotary_emb = Qwen2RotaryEmbedding(config=config)
         self.adapter_query = nn.Embedding(config.adapter_len * config.adapter_layer, config.hidden_size)
-        # print("adapter_query:",self.adapter_query)
         self.gradient_checkpointing = False
 
         # nn.init.zeros_(self.adapter_query.weight)
-        nn.init.normal(self.adapter_query, mean=0.0, std=0.02)
+        # nn.init.normal(self.adapter_query, mean=0.0, std=0.02)
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -565,8 +564,6 @@ class Qwen2Model(Qwen2PreTrainedModel):
             output_hidden_states=False,
             layer_index=None
         ):
-        # else:
-        #     print("adapter is None in process layer")
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
