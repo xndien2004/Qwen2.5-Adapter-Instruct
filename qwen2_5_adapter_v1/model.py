@@ -570,7 +570,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
             output_hidden_states=False,
             layer_index=None
         ):
-
+        print("adapter in process layer:", torch.isnan(adapter).any())
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
