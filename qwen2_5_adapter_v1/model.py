@@ -148,7 +148,7 @@ def eager_attention_forward(
         attn_weights = attn_weights + causal_mask
 
     # Debug: Kiểm tra giá trị của attn_weights
-    breakpoint()  # Kiểm tra attn_weights tại đây
+    # breakpoint()  # Kiểm tra attn_weights tại đây
     print(f"attn_weights before adapter: {attn_weights}")
     print(torch.isnan(attn_weights).any())  # Kiểm tra NaN
     print(torch.isinf(attn_weights).any())  # Kiểm tra Inf
@@ -927,7 +927,7 @@ class Qwen2AdapterV1ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
 
         if torch.isnan(logits).any() or torch.isinf(logits).any():
             print("NaN or Inf found in logits")
-            breakpoint()
+            # breakpoint()
         loss = None
         if labels is not None:
             loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
