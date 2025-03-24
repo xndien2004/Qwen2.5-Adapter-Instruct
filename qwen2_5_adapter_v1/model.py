@@ -547,6 +547,10 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 output_hidden_states=output_hidden_states,
                 layer_index=layer_index
             )
+
+            max_dtype = torch.finfo(hidden_states.dtype).max
+            clamp_value = torch.where(torch.isinf(hidden_states).any(), max_dtype - 1000, max_dtype)
+            hidden_states = torch.clamp(hidden_states, min=-clamp_value, max=clamp_value)
         print("hidden_states after adapter:", torch.isnan(hidden_states).any())
         print("adapter_query after adapter:", torch.isnan(self.adapter_query.weight).any())
         print("adapter after adapter:", torch.isnan(adapter).any())
