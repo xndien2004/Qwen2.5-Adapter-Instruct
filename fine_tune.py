@@ -22,10 +22,8 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=2, help="Batch size per device")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--learning_rate", type=float, default=2e-4)
+    parser.add_argument("--learning_rate", type=float, default=1e-4)  # Giảm learning rate để giảm độ lớn của gradient
     return parser.parse_args()
-
-
 
 
 def get_training_args(args) -> TrainingArguments:
@@ -44,13 +42,12 @@ def get_training_args(args) -> TrainingArguments:
         optim="adamw_torch",
         lr_scheduler_type="cosine",
         warmup_ratio=0.1,
-        gradient_checkpointing=False,
-        max_grad_norm=1.0,
+        gradient_checkpointing=True,   
+        max_grad_norm=0.5,  
         dataloader_pin_memory=False,
         dataloader_num_workers=2,
         report_to=["none"]
     )
-
 
 
 def main():
@@ -77,7 +74,13 @@ def main():
     )
 
     model.config.use_cache = False
-    # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
+ 
+    def compute_gradients(model):
+        for param in model.parameters():
+            if param.grad is not None:
+                torch.nn.utils.clip_grad_norm_(param, max_norm=0.5)  
+
+    trainer.add_callback(compute_gradients)   
 
     trainer.train()
     trainer.save_model(args.output_dir)
