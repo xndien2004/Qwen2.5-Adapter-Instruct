@@ -424,6 +424,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         self.gradient_checkpointing = False
 
         # nn.init.zeros_(self.adapter_query.weight)
+        nn.init.normal(self.adapter_query, mean=0.0, std=0.02)
         # Initialize weights and apply final processing
         self.post_init()
 
