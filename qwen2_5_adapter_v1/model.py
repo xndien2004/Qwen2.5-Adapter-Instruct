@@ -482,19 +482,20 @@ class Qwen2Model(Qwen2PreTrainedModel):
         causal_mask = self._update_causal_mask(
             attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
         )
-
         hidden_states = inputs_embeds
-        print("hidden_states:", torch.isnan(hidden_states).any())
 
         # create position embeddings to be shared across the decoder layers
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
-        self.adapter_query.weight.data = torch.clamp(self.adapter_query.weight.data, min=-1.0, max=1.0)
-        if torch.isnan(self.adapter_query.weight).any() or torch.isinf(self.adapter_query.weight).any():
-            print("NaN or Inf found in adapter_query weights!")
+        # self.adapter_query.weight.data = torch.clamp(self.adapter_query.weight.data, min=-1.0, max=1.0)
+        
+        print("hidden_states:", torch.isnan(hidden_states).any())
+        print("adapter_query:", torch.isnan(self.adapter_query.weight).any())
+        # if torch.isnan(self.adapter_query.weight).any() or torch.isinf(self.adapter_query.weight).any():
+        #     print("NaN or Inf found in adapter_query weights!")
             # self.adapter_query.weight.data = torch.nan_to_num(self.adapter_query.weight.data)
-        else:
-            print("No NaN or Inf found in adapter_query weights!")
+        # else:
+        #     print("No NaN or Inf found in adapter_query weights!")
 
         adapter = self.adapter_query.weight.reshape(
             self.config.adapter_layer, self.config.adapter_len, self.config.hidden_size
@@ -503,9 +504,9 @@ class Qwen2Model(Qwen2PreTrainedModel):
         bsz = hidden_states.shape[0]
         adapter = adapter.expand(-1, bsz, -1, -1)
 
-        if torch.isnan(adapter).any() or torch.isinf(adapter).any():
-            # raise ValueError("NaN or Inf found in converter after reshape and expansion")
-            print("NaN or Inf found in adapter after reshape and expansion!")
+        # if torch.isnan(adapter).any() or torch.isinf(adapter).any():
+        #     # raise ValueError("NaN or Inf found in converter after reshape and expansion")
+        #     print("NaN or Inf found in adapter after reshape and expansion!")
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
@@ -546,7 +547,9 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 output_hidden_states=output_hidden_states,
                 layer_index=layer_index
             )
-
+        print("hidden_states after adapter:", torch.isnan(hidden_states).any())
+        print("adapter_query after adapter:", torch.isnan(self.adapter_query.weight).any())
+        print("adapter after adapter:", torch.isnan(adapter).any())
         hidden_states = self.norm(hidden_states)
 
         # add hidden states from the last decoder layer
