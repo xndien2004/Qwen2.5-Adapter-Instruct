@@ -415,9 +415,10 @@ class Qwen2Model(Qwen2PreTrainedModel):
         self.norm = Qwen2RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.rotary_emb = Qwen2RotaryEmbedding(config=config)
         self.adapter_query = nn.Embedding(config.adapter_len * config.adapter_layer, config.hidden_size)
+        # print("adapter_query:",self.adapter_query)
         self.gradient_checkpointing = False
 
-        nn.init.zeros_(self.adapter_query.weight)
+        # nn.init.zeros_(self.adapter_query.weight)
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -483,7 +484,9 @@ class Qwen2Model(Qwen2PreTrainedModel):
 
         if torch.isnan(self.adapter_query.weight).any() or torch.isinf(self.adapter_query.weight).any():
             print("NaN or Inf found in adapter_query weights!")
-            self.adapter_query.weight.data = torch.nan_to_num(self.adapter_query.weight.data)
+            # self.adapter_query.weight.data = torch.nan_to_num(self.adapter_query.weight.data)
+        else:
+            print("No NaN or Inf found in adapter_query weights!")
 
         adapter = self.adapter_query.weight.reshape(
             self.config.adapter_layer, self.config.adapter_len, self.config.hidden_size
