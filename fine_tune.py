@@ -82,13 +82,7 @@ def main():
     )
 
     model.config.use_cache = False
- 
-    def compute_gradients(model):
-        for param in model.parameters():
-            if param.grad is not None:
-                torch.nn.utils.clip_grad_norm_(param, max_norm=0.5)  
-
-    trainer.add_callback(compute_gradients)   
+  
 
     trainer.train()
     trainer.save_model(args.output_dir)
