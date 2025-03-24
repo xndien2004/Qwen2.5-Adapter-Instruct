@@ -54,9 +54,9 @@ def preprocess_fact_verification(
         target += [im_start] + [IGNORE_TOKEN_ID] * (len(system) - 3) + [im_end] + nl_tokens
 
         # Add user prompt
-        print("user:", tokenizer(roles["user"]).input_ids)
-        print("im_start:", im_start)
-        user_msg = tokenizer(roles["user"]).input_ids + nl_tokens + tokenizer(system_prompt).input_ids + [im_end] + nl_tokens
+        # print("user:", tokenizer(roles["user"]).input_ids)
+        # print("im_start:", im_start)
+        user_msg = [im_start] + nl_tokens + tokenizer(system_prompt).input_ids + [im_end] + nl_tokens
         input_id += user_msg
         target += [im_start] + [IGNORE_TOKEN_ID] * (len(user_msg) - 3) + [im_end] + nl_tokens
 
