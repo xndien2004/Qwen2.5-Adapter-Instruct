@@ -194,6 +194,8 @@ class Qwen2Attention(nn.Module):
         # If there is an adapter, we will add the adapter to the key and value
         adapter_len = adapter.shape[1] if adapter is not None else 0
         if adapter is not None:
+            print("----ATTENTION----")
+            print("adapter:", torch.isnan(adapter).any())
             bsz = hidden_states.shape[0]
 
             adapter_k = self.k_proj(adapter).view(bsz, adapter_len, self.config.num_key_value_heads, self.head_dim)
