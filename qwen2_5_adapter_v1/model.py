@@ -482,7 +482,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
         if torch.isnan(self.adapter_query.weight).any() or torch.isinf(self.adapter_query.weight).any():
-            print("NaN hoặc Inf found in adapter_query weights!")
+            print("NaN or Inf found in adapter_query weights!")
             self.adapter_query.weight.data = torch.nan_to_num(self.adapter_query.weight.data)
 
         adapter = self.adapter_query.weight.reshape(
@@ -493,7 +493,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         adapter = adapter.expand(-1, bsz, -1, -1)
 
         if torch.isnan(adapter).any() or torch.isinf(adapter).any():
-            raise ValueError("NaN hoặc Inf được tìm thấy trong adapter sau reshape và expand")
+            raise ValueError("NaN or Inf found in converter after reshape and expansion")
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
