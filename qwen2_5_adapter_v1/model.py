@@ -483,7 +483,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
 
         if torch.isnan(self.adapter_query.weight).any() or torch.isinf(self.adapter_query.weight).any():
             print("NaN hoặc Inf found in adapter_query weights!")
-            self.adapter_query.weight = torch.nan_to_num(self.adapter_query.weight)
+            self.adapter_query.weight.data = torch.nan_to_num(self.adapter_query.weight.data)
+
         adapter = self.adapter_query.weight.reshape(
             self.config.adapter_layer, self.config.adapter_len, self.config.hidden_size
         ).unsqueeze(1)
