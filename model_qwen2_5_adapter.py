@@ -8,11 +8,11 @@ from fairscale.nn.model_parallel import initialize
 from qwen2_5_adapter_v1 import Qwen2AdapterV1Config, Qwen2AdapterV1ForCausalLM
 from qwen2_5_adapter_v2 import Qwen2AdapterV2Config, Qwen2AdapterV2ForCausalLM
 
-world_size = 4
-rank = dist.get_rank()  
+# world_size = 4
+# rank = dist.get_rank()  
 
-dist.init_process_group(backend="nccl", init_method="env://", world_size=world_size, rank=rank)
-initialize.initialize_model_parallel(2)
+# dist.init_process_group(backend="nccl", init_method="env://", world_size=world_size, rank=rank)
+# initialize.initialize_model_parallel(2)
 def Qwen2_5_Adapter(model_name: str, adapter_len: int = 64, adapter_layer: int = 4, is_type_qwen_adapter: str = "v1") -> Tuple[torch.nn.Module, AutoTokenizer]:
     assert is_type_qwen_adapter in ["v1", "v2"], "is_type_qwen_adapter must be 'v1' or 'v2'."
 
