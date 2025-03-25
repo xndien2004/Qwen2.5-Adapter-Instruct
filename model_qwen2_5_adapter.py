@@ -1,14 +1,12 @@
 from typing import Tuple
 import torch
+import torch.distributed as dist
 from transformers import AutoTokenizer
-from fairscale.nn import ShardedDataParallel
-from fairscale.nn.model_parallel import initialize
+from fairscale.nn.data_parallel import ShardedDataParallel
 
 from qwen2_5_adapter_v1 import Qwen2AdapterV1Config, Qwen2AdapterV1ForCausalLM
 from qwen2_5_adapter_v2 import Qwen2AdapterV2Config, Qwen2AdapterV2ForCausalLM
-
-initialize()
-
+ 
 def Qwen2_5_Adapter(model_name: str, adapter_len: int = 64, adapter_layer: int = 4, is_type_qwen_adapter: str = "v1") -> Tuple[torch.nn.Module, AutoTokenizer]:
     assert is_type_qwen_adapter in ["v1", "v2"], "is_type_qwen_adapter must be 'v1' or 'v2'."
 
@@ -33,7 +31,6 @@ def Qwen2_5_Adapter(model_name: str, adapter_len: int = 64, adapter_layer: int =
             ignore_mismatched_sizes=True,
             torch_dtype=torch.bfloat16
         ).to("cuda")
-
         if is_type_qwen_adapter == "v2":
             model = ShardedDataParallel(model, sharding_strategy="auto")
 
