@@ -2,7 +2,6 @@ import os
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
-
 from typing import Tuple
 from transformers import AutoTokenizer
 from fairscale.nn.model_parallel import initialize
@@ -12,17 +11,23 @@ from qwen2_5_adapter_v2 import Qwen2AdapterV2Config, Qwen2AdapterV2ForCausalLM
 
 def setup_model_parallel(rank, master_addr, master_port, world_size, backend='nccl') -> Tuple[int, int]:
     '''
-        this will not work with LightningModule
+    Initialize model parallel group.
     '''
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
-    world_size = int(os.environ.get("WORLD_SIZE", "4"))
-    print("local_rank:", local_rank, "world_size:", world_size)
+    print(f"local_rank: {local_rank}, world_size: {world_size}")
 
-    torch.distributed.init_process_group(backend)
-    initialize.initialize_model_parallel(world_size)
+    # Set environment variables for distributed training
+    os.environ['MASTER_ADDR'] = master_addr
+    os.environ['MASTER_PORT'] = master_port
+    os.environ['RANK'] = str(rank)
+    os.environ['WORLD_SIZE'] = str(world_size)
+
+    # Initialize distributed process group
+    dist.init_process_group(backend=backend, init_method="env://", world_size=world_size, rank=rank)
+    initialize.initialize_model_parallel(world_size)  # fairscale model parallel initialization
     torch.cuda.set_device(local_rank)
 
-    # seed must be the same in all processes
+    # Seed must be the same in all processes
     torch.manual_seed(1)
     return local_rank, world_size
 
@@ -33,7 +38,6 @@ def Qwen2_5_Adapter(model_name: str, adapter_len: int = 64, adapter_layer: int =
     # Setup model parallel environment
     local_rank, world_size = setup_model_parallel(rank=0, master_addr="localhost", master_port="12355", world_size=4)
     mp.spawn(setup_model_parallel, args=("localhost","12355",world_size,), nprocs=world_size)
-
     if is_type_qwen_adapter == "v1":
         config_class, model_class = Qwen2AdapterV1Config, Qwen2AdapterV1ForCausalLM
     else:
