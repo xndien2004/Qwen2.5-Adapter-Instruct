@@ -1,22 +1,21 @@
-from typing import Tuple
 import os
 import torch
 import torch.distributed as dist
-import torch.multiprocessing as mp
-from transformers import AutoTokenizer
+from typing import Tuple
 from fairscale.nn.model_parallel import initialize
-# from fairscale.nn.data_parallel import ShardedDataParallel
-
-from qwen2_5_adapter_v1 import Qwen2AdapterV1Config, Qwen2AdapterV1ForCausalLM
-from qwen2_5_adapter_v2 import Qwen2AdapterV2Config, Qwen2AdapterV2ForCausalLM
-
 
 def setup_model_parallel(rank, master_addr, master_port, world_size, backend='nccl') -> Tuple[int, int]:
     '''
-        Initialize model parallel group.
+    Initialize model parallel group.
     '''
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     print(f"local_rank: {local_rank}, world_size: {world_size}")
+
+    # Set environment variables for distributed training
+    os.environ['MASTER_ADDR'] = master_addr
+    os.environ['MASTER_PORT'] = master_port
+    os.environ['RANK'] = str(rank)
+    os.environ['WORLD_SIZE'] = str(world_size)
 
     # Initialize distributed process group
     dist.init_process_group(backend=backend, init_method="env://", world_size=world_size, rank=rank)
@@ -69,7 +68,7 @@ def Qwen2_5_Adapter(model_name: str, adapter_len: int = 64, adapter_layer: int =
         )
 
         if requires_grad:
-            param.data = param.data.float()  
+            param.data = param.data.float()  # Ensure the correct dtype
             param.requires_grad = True
         else:
             param.requires_grad = False
