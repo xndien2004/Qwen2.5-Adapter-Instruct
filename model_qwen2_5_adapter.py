@@ -2,7 +2,11 @@ import os
 import torch
 import torch.distributed as dist
 from typing import Tuple
+from transformers import AutoTokenizer
 from fairscale.nn.model_parallel import initialize
+
+from qwen2_5_adapter_v1 import Qwen2AdapterV1Config, Qwen2AdapterV1ForCausalLM
+from qwen2_5_adapter_v2 import Qwen2AdapterV2Config, Qwen2AdapterV2ForCausalLM
 
 def setup_model_parallel(rank, master_addr, master_port, world_size, backend='nccl') -> Tuple[int, int]:
     '''
