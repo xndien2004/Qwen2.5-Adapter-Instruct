@@ -59,10 +59,8 @@ def Qwen2_5_Adapter(model_name: str, adapter_len: int = 64, adapter_layer: int =
         torch_dtype=torch.bfloat16
     ).to("cuda")
 
-    # Tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 
-    # Freeze non-adapter parameters and setup gradients for adapters
     for name, param in model.named_parameters():
         requires_grad = (
             "adapter_query" in name
@@ -72,12 +70,11 @@ def Qwen2_5_Adapter(model_name: str, adapter_len: int = 64, adapter_layer: int =
         )
 
         if requires_grad:
-            param.data = param.data.float()  # Ensure the correct dtype
+            param.data = param.data.float() 
             param.requires_grad = True
         else:
             param.requires_grad = False
 
-    # Calculate number of trainable parameters
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
 
