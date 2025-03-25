@@ -3,7 +3,6 @@ from typing import Callable, List, Optional, Tuple, Union, Dict
 import torch
 from torch import nn
 from torch.nn import functional as F
-import fairscale
 import fairscale.nn.model_parallel.initialize as fs_init
 from fairscale.nn.model_parallel.layers import ColumnParallelLinear, ParallelEmbedding, RowParallelLinear
 
@@ -28,7 +27,6 @@ from transformers.utils.deprecation import deprecate_kwarg
 
 from .config import Qwen2AdapterV2Config
 
-fairscale.init_parallel_group()
 logger = logging.get_logger(__name__)
  
 _CONFIG_FOR_DOC = "Qwen2AdapterV2Config"
