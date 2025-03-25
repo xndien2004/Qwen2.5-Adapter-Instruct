@@ -15,50 +15,45 @@ def Qwen2_5_Adapter(model_name: str, adapter_len: int = 64, adapter_layer: int =
     else:
         config_class, model_class = Qwen2AdapterV2Config, Qwen2AdapterV2ForCausalLM
 
-    try:
-        config = config_class.from_pretrained(model_name)
-        config.adapter_len = adapter_len
-        config.adapter_layer = adapter_layer
-        if is_type_qwen_adapter == "v2":
-            config.add_bias = True
-            config.add_scale = True
-        config._attn_implementation = "eager"
+    config = config_class.from_pretrained(model_name)
+    config.adapter_len = adapter_len
+    config.adapter_layer = adapter_layer
+    if is_type_qwen_adapter == "v2":
+        config.add_bias = True
+        config.add_scale = True
+    config._attn_implementation = "eager"
 
-        model = model_class.from_pretrained(
-            model_name,
-            config=config,
-            trust_remote_code=True,
-            ignore_mismatched_sizes=True,
-            torch_dtype=torch.bfloat16
-        ).to("cuda")
-        if is_type_qwen_adapter == "v2":
-            model = ShardedDataParallel(model, sharding_strategy="auto")
+    model = model_class.from_pretrained(
+        model_name,
+        config=config,
+        trust_remote_code=True,
+        ignore_mismatched_sizes=True,
+        torch_dtype=torch.bfloat16
+    ).to("cuda")
+    if is_type_qwen_adapter == "v2":
+        model = ShardedDataParallel(model, sharding_strategy="auto")
 
-        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 
-        for name, param in model.named_parameters():
-            requires_grad = (
-                "adapter_query" in name
-                or "gate_adapter" in name
-                or name.endswith(".added_bias")
-                or name.endswith(".added_scale")
-            )
+    for name, param in model.named_parameters():
+        requires_grad = (
+            "adapter_query" in name
+            or "gate_adapter" in name
+            or name.endswith(".added_bias")
+            or name.endswith(".added_scale")
+        )
 
-            if requires_grad:
-                param.data = param.data.float()
-                param.requires_grad = True
-            else:
-                param.requires_grad = False
+        if requires_grad:
+            param.data = param.data.float()
+            param.requires_grad = True
+        else:
+            param.requires_grad = False
 
-        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total_params = sum(p.numel() for p in model.parameters())
 
-        print(f"Model '{model_name}' (Adapter {is_type_qwen_adapter}) loaded successfully.")
-        print(f"Total parameters: {total_params:,}")
-        print(f"Trainable parameters: {trainable_params:,}")
+    print(f"Model '{model_name}' (Adapter {is_type_qwen_adapter}) loaded successfully.")
+    print(f"Total parameters: {total_params:,}")
+    print(f"Trainable parameters: {trainable_params:,}")
 
-        return model, tokenizer
-
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        return None, None
+    return model, tokenizer
