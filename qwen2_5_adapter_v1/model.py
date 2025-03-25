@@ -529,10 +529,6 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 output_hidden_states=output_hidden_states,
                 layer_index=layer_index
             )
-
-            max_dtype = torch.finfo(hidden_states.dtype).max
-            clamp_value = torch.where(torch.isinf(hidden_states).any(), max_dtype - 1000, max_dtype)
-            hidden_states = torch.clamp(hidden_states, min=-clamp_value, max=clamp_value) 
         hidden_states = self.norm(hidden_states)
 
         # add hidden states from the last decoder layer
