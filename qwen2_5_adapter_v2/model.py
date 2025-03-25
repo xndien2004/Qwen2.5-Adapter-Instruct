@@ -3,6 +3,8 @@ from typing import Callable, List, Optional, Tuple, Union, Dict
 import torch
 from torch import nn
 from torch.nn import functional as F
+import fairscale.nn.model_parallel.initialize as fs_init
+from fairscale.nn.model_parallel.layers import ColumnParallelLinear, ParallelEmbedding, RowParallelLinear
 
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, DynamicCache, SlidingWindowCache, StaticCache
@@ -23,11 +25,11 @@ from transformers.utils import (
 )
 from transformers.utils.deprecation import deprecate_kwarg 
 
-from .config import Qwen2AdapterV1Config
+from .config import Qwen2AdapterV2Config
 
 logger = logging.get_logger(__name__)
  
-_CONFIG_FOR_DOC = "Qwen2AdapterV1Config"
+_CONFIG_FOR_DOC = "Qwen2AdapterV2Config"
 ALL_ATTENTION_FUNCTIONS: Dict[str, Callable] = {}
 
 class Qwen2MLP(nn.Module):
@@ -36,14 +38,37 @@ class Qwen2MLP(nn.Module):
         self.config = config
         self.hidden_size = config.hidden_size
         self.intermediate_size = config.intermediate_size
-        self.gate_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
-        self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
-        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
+        mp_size = fs_init.get_model_parallel_world_size()
+        mp_rank = fs_init.get_model_parallel_rank()
+        self.mp_dim_start = self.hidden_size // mp_size * mp_rank
+        self.mp_dim_end = self.hidden_size // mp_size * (mp_rank + 1)
+        self.gate_proj = ColumnParallelLinear(self.hidden_size, self.intermediate_size, gather_output=False)
+        self.up_proj = ColumnParallelLinear(self.hidden_size, self.intermediate_size, gather_output=False)
+        self.down_proj = RowParallelLinear(self.intermediate_size, self.hidden_size, input_is_parallel=True)
         self.act_fn = ACT2FN[config.hidden_act]
 
+        if config.add_bias:
+            self.gate_bias, self.up_bias = [nn.Parameter(torch.zeros([self.intermediate_size/mp_size])) for _ in range(2)]
+            self.down_bias = nn.Parameter(torch.zeros([self.hidden_size]))
+        else:
+            self.gate_bias, self.up_bias, self.down_bias = None, None, None
+
+        if config.add_scale:
+            self.gate_scale, self.up_scale = [nn.Parameter(torch.ones([self.hidden_size])) for _ in range(2)]
+            self.down_scale = nn.Parameter(torch.ones([self.intermediate_size/mp_size]))
+        else:
+            self.gate_scale, self.up_scale, self.down_scale = None, None, None
+
     def forward(self, x):
-        down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
-        return down_proj
+        return forward_linear_with_scale_and_bias(
+            self.act_fn(
+                forward_linear_with_scale_and_bias(x, self.gate_proj, scale=self.gate_scale, bias=self.gate_bias)
+                *forward_linear_with_scale_and_bias(x, self.up_proj, scale=self.up_scale, bias=self.up_bias)
+            ),
+            self.down_proj,
+            scale=self.down_scale,
+            bias=self.down_bias
+        )
 
 
 def rotate_half(x):
@@ -100,9 +125,6 @@ def eager_attention_forward(
     attention_mask: Optional[torch.Tensor],
     scaling: float,
     dropout: float = 0.0,
-    adapter: Optional[torch.Tensor] = None, # add adapter
-    gate: Optional[torch.Tensor] = None, # add gate
-    adapter_len: Optional[int] = None, # add adapter_len
     **kwargs,
 ):
     key_states = repeat_kv(key, module.num_key_value_groups)
@@ -113,40 +135,66 @@ def eager_attention_forward(
         causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
         attn_weights = attn_weights + causal_mask
  
-    if adapter is not None:
-        soft_adapter = F.softmax(attn_weights[:, :, :, :adapter_len].float(), dim=-1)
-        soft_main = F.softmax(attn_weights[:, :, :, adapter_len:].float(), dim=-1)
-        gated_adapter = gate.tanh().to(query.dtype) * soft_adapter.to(query.dtype)
-        attn_weights = torch.cat([gated_adapter, soft_main.to(query.dtype)], dim=-1)
-    else:
-        attn_weights = F.softmax(attn_weights.float(), dim=-1).to(query.dtype) 
+    attn_weights = F.softmax(attn_weights.float(), dim=-1).to(query.dtype) 
     attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
     attn_output = torch.matmul(attn_weights, value_states)
     attn_output = attn_output.transpose(1, 2).contiguous()
 
     return attn_output, attn_weights
 
+def forward_linear_with_scale_and_bias(x, module, scale=None, bias=None):
+    if scale is not None:
+        x = x * scale
+    x = module(x)
+    if bias is not None:
+        x = x + bias
+    return x
 
 class Qwen2Attention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
-    def __init__(self, config: Qwen2AdapterV1Config, layer_idx: int):
+    def __init__(self, config: Qwen2AdapterV2Config, layer_idx: int):
         super().__init__()
         self.config = config
         self.layer_idx = layer_idx
-        self.n_local_heads = config.num_attention_heads
+        self.n_local_heads = config.num_attention_heads / fs_init.get_model_parallel_world_size()
         self.head_dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
         self.num_key_value_groups = config.num_attention_heads // config.num_key_value_heads
         self.scaling = self.head_dim**-0.5
         self.attention_dropout = config.attention_dropout
         self.is_causal = True
-        self.q_proj = nn.Linear(config.hidden_size, config.num_attention_heads * self.head_dim, bias=True)
-        self.k_proj = nn.Linear(config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True)
-        self.v_proj = nn.Linear(config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True)
-        self.o_proj = nn.Linear(config.num_attention_heads * self.head_dim, config.hidden_size, bias=False)
+        # self.q_proj = nn.Linear(config.hidden_size, config.num_attention_heads * self.head_dim, bias=True)
+        # self.k_proj = nn.Linear(config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True)
+        # self.v_proj = nn.Linear(config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True)
+        # self.o_proj = nn.Linear(config.num_attention_heads * self.head_dim, config.hidden_size, bias=False)
+
+        self.q_proj = ColumnParallelLinear(config.hidden_size, config.num_attention_heads * self.head_dim, gather_output=False)
+        self.k_proj = ColumnParallelLinear(config.hidden_size, config.num_key_value_heads * self.head_dim, gather_output=False)
+        self.v_proj = ColumnParallelLinear(config.hidden_size, config.num_key_value_heads * self.head_dim, gather_output=False)
+        self.o_proj = RowParallelLinear(config.num_attention_heads * self.head_dim, config.hidden_size, input_is_parallel=True)
 
         self.gate_adapter = torch.nn.Parameter(torch.zeros(1, self.n_local_heads, 1, 1))
+        self.head_start = self.n_local_heads * fs_init.get_model_parallel_rank()
+        self.head_end = self.n_local_heads * (fs_init.get_model_parallel_rank() + 1)
 
+        self.cache_enabled = False
+        self.cache_k, self.cache_v = None, None
+
+        if config.add_bias:
+            self.q_bias, self.k_bias, self.v_bias = [
+                nn.Parameter(torch.zeros([self.n_local_heads*self.head_dim])) for _ in range(3)
+            ]
+            self.o_bias = nn.Parameter(torch.zeros([config.hidden_size]))
+        else:
+            self.q_bias, self.k_bias, self.v_bias, self.o_bias = None, None, None, None
+
+        if config.add_scale:
+            self.q_scale, self.k_scale, self.v_scale = [
+                nn.Parameter(torch.ones([config.hidden_size])) for _ in range(3)
+            ]
+            self.o_scale = nn.Parameter(torch.ones([self.n_local_heads*self.head_dim]))
+        else:
+            self.q_scale, self.k_scale, self.v_scale, self.o_scale = None, None, None, None
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -155,15 +203,16 @@ class Qwen2Attention(nn.Module):
         past_key_value: Optional[Cache] = None,
         cache_position: Optional[torch.LongTensor] = None,
         adapter: Optional[torch.Tensor] = None, # add adapter
+        start_pos: int = 0, # add start_pos
         **kwargs: Unpack[FlashAttentionKwargs],
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         input_shape = hidden_states.shape[:-1]
         bsz, seq_len = input_shape
         hidden_shape = (*input_shape, -1, self.head_dim)
-
-        query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
-        key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
-        value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+ 
+        query_states = forward_linear_with_scale_and_bias(hidden_states, self.q_proj, scale=self.scaling, bias=self.q_bias).view(hidden_shape).transpose(1, 2)
+        key_states = forward_linear_with_scale_and_bias(hidden_states, self.k_proj, scale=self.scaling, bias=self.k_bias).view(hidden_shape).transpose(1, 2)
+        value_states = forward_linear_with_scale_and_bias(hidden_states, self.v_proj, scale=self.scaling, bias=self.v_bias).view(hidden_shape).transpose(1, 2)
 
         cos, sin = position_embeddings
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
@@ -196,18 +245,22 @@ class Qwen2Attention(nn.Module):
         if adapter is not None:
             bsz = hidden_states.shape[0]
 
-            adapter_k = self.k_proj(adapter).view(bsz, adapter_len, self.config.num_key_value_heads, self.head_dim)
+            adapter_k = forward_linear_with_scale_and_bias(adapter, self.k_proj, scale=self.scaling, bias=self.k_bias).view(bsz, adapter_len, self.config.num_key_value_heads, self.head_dim)
             adapter_k = adapter_k.permute(0, 2, 1, 3)
 
-            adapter_v = self.v_proj(adapter).view(bsz, adapter_len, self.config.num_key_value_heads, self.head_dim)
+            adapter_v = forward_linear_with_scale_and_bias(adapter, self.v_proj, scale=self.scaling, bias=self.v_bias).view(bsz, adapter_len, self.config.num_key_value_heads, self.head_dim)
             adapter_v = adapter_v.permute(0, 2, 1, 3)
 
-            key_states = torch.cat([adapter_k, key_states], dim=2)
-            value_states = torch.cat([adapter_v, value_states], dim=2)
-
-            extra_mask = torch.zeros(bsz, 1, seq_len, adapter_len, device=attention_mask.device, dtype=attention_mask.dtype)
-            attention_mask = torch.cat([extra_mask, attention_mask], dim=-1)
-
+        if self.cache_enabled:
+            if self.cache_k is None:
+                assert start_pos == 0
+                self.cache_k = key_states
+                self.cache_v = value_states
+            else:
+                assert self.cache_k.size(2) >= start_pos
+                self.cache_k = torch.cat([self.cache_k[:, :, :start_pos, :], key_states], dim=2)
+                self.cache_v = torch.cat([self.cache_v[:, :, :start_pos, :], value_states], dim=2)
+                key_states, value_states = self.cache_k, self.cache_v
         attn_output, attn_weights = attention_interface(
             self,
             query_states,
@@ -217,14 +270,27 @@ class Qwen2Attention(nn.Module):
             dropout=0.0 if not self.training else self.attention_dropout,
             scaling=self.scaling,
             sliding_window=sliding_window,  # main diff with Llama
-            adapter = adapter, # add adapter
-            gate = self.gate_adapter, # add gate
-            adapter_len=adapter_len,
             **kwargs,
         )
 
+        if adapter is not None:
+            attn_output_adapter, _ = attention_interface(
+                self,
+                query_states,
+                adapter_k,
+                adapter_v,
+                attention_mask,
+                dropout=0.0 if not self.training else self.attention_dropout,
+                scaling=self.scaling,
+                sliding_window=sliding_window,  # main diff with Llama
+                **kwargs,
+            )
+            attn_output += self.gate_adapter[
+                :, self.head_start : self.head_end
+            ].tanh().half()*attn_output_adapter
+
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
-        attn_output = self.o_proj(attn_output)
+        attn_output = forward_linear_with_scale_and_bias(attn_output, self.o_proj, scale=self.o_scale, bias=self.o_bias)
         return attn_output, attn_weights
 
 
@@ -249,7 +315,7 @@ class Qwen2RMSNorm(nn.Module):
 
 
 class Qwen2DecoderLayer(nn.Module):
-    def __init__(self, config: Qwen2AdapterV1Config, layer_idx: int):
+    def __init__(self, config: Qwen2AdapterV2Config, layer_idx: int):
         super().__init__()
         self.hidden_size = config.hidden_size
         self.self_attn = Qwen2Attention(config=config, layer_idx=layer_idx)
@@ -273,6 +339,7 @@ class Qwen2DecoderLayer(nn.Module):
         cache_position: Optional[torch.LongTensor] = None,
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # necessary, but kept here for BC
         adapter: Optional[torch.Tensor] = None,  # add adapter
+        start_pos: int = 0,  # add start_pos
         **kwargs: Unpack[FlashAttentionKwargs],
     ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
         residual = hidden_states
@@ -290,6 +357,7 @@ class Qwen2DecoderLayer(nn.Module):
             cache_position=cache_position,
             position_embeddings=position_embeddings,
             adapter=adapter,
+            start_pos=start_pos,
             **kwargs,
         )
         hidden_states = residual + hidden_states
@@ -308,7 +376,7 @@ class Qwen2DecoderLayer(nn.Module):
 
 
 class Qwen2RotaryEmbedding(nn.Module):
-    def __init__(self, config: Qwen2AdapterV1Config, device=None):
+    def __init__(self, config: Qwen2AdapterV2Config, device=None):
         super().__init__()
         # BC: "rope_type" was originally "type"
         if hasattr(config, "rope_scaling") and config.rope_scaling is not None:
@@ -370,7 +438,7 @@ class Qwen2RotaryEmbedding(nn.Module):
 
 
 class Qwen2PreTrainedModel(PreTrainedModel):
-    config_class = Qwen2AdapterV1Config
+    config_class = Qwen2AdapterV2Config
     base_model_prefix = "model"
     supports_gradient_checkpointing = True
     _no_split_modules = ["Qwen2DecoderLayer"]
@@ -399,10 +467,10 @@ class Qwen2Model(Qwen2PreTrainedModel):
     Transformer decoder consisting of *config.num_hidden_layers* layers. Each layer is a [`Qwen2DecoderLayer`]
 
     Args:
-        config: Qwen2AdapterV1Config
+        config: Qwen2AdapterV2Config
     """
 
-    def __init__(self, config: Qwen2AdapterV1Config):
+    def __init__(self, config: Qwen2AdapterV2Config):
         super().__init__(config)
         # self.config = config
         self.padding_idx = config.pad_token_id
@@ -493,6 +561,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
+        start_pos = 0
 
         for decoder_layer in self.layers[: -1*self.config.adapter_layer]:
             hidden_states = self.process_layer(
@@ -505,7 +574,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 use_cache=use_cache,
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
-                adapter=None, 
+                adapter=None, # add adapter
+                start_pos=start_pos, # add start_pos
                 gradient_checkpointing=self.gradient_checkpointing,
                 flash_attn_kwargs=flash_attn_kwargs,
                 output_hidden_states=output_hidden_states,
@@ -524,6 +594,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
                 adapter=adapter, # add adapter
+
                 gradient_checkpointing=self.gradient_checkpointing,
                 flash_attn_kwargs=flash_attn_kwargs,
                 output_hidden_states=output_hidden_states,
@@ -555,6 +626,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
             cache_position,
             position_embeddings,
             adapter=None, # add adapter
+            start_pos=0, # add start_pos
             gradient_checkpointing=False,
             flash_attn_kwargs=None,
             output_hidden_states=False,
@@ -575,6 +647,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 cache_position,
                 position_embeddings,
                 adapter[layer_index] if adapter is not None else None, # add adapter
+                start_pos=start_pos, # add start_pos
             )
         else:
             layer_outputs = decoder_layer(
@@ -587,6 +660,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
                 adapter=adapter[layer_index] if adapter is not None else None, # add adapter
+                start_pos=start_pos, # add start_pos
                 **(flash_attn_kwargs or {}),
             )
 
@@ -689,7 +763,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         device: torch.device,
         cache_position: torch.Tensor,
         batch_size: int,
-        config: Qwen2AdapterV1Config,
+        config: Qwen2AdapterV2Config,
         past_key_values: Cache,
     ):
         """
@@ -711,7 +785,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 Indices depicting the position of the input sequence tokens in the sequence.
             batch_size (`torch.Tensor`):
                 Batch size.
-            config (`Qwen2AdapterV1Config`):
+            config (`Qwen2AdapterV2Config`):
                 The model's configuration class
             past_key_values (`Cache`):
                 The cache class that is being used currently to generate
@@ -753,7 +827,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
 class KwargsForCausalLM(FlashAttentionKwargs, LossKwargs): ...
 
 
-class Qwen2AdapterV1ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
+class Qwen2AdapterV2ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
     _tied_weights_keys = ["lm_head.weight"]
     _tp_plan = {"lm_head": "colwise_rep"}
     _pp_plan = {"lm_head": (["hidden_states"], ["logits"])}

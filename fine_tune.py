@@ -29,7 +29,8 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=2, help="Batch size per device")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--learning_rate", type=float, default=1e-4)  # Giảm learning rate để giảm độ lớn của gradient
+    parser.add_argument("--learning_rate", type=float, default=1e-4)  
+    parser.add_argument("--is_type_qwen_adapter", type=str, default="v1", help="Adapter type")
     return parser.parse_args()
 
 
@@ -63,7 +64,10 @@ def main():
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    model, tokenizer = Qwen2_5_Adapter(args.model_name, adapter_layer=args.adapter_layer, adapter_len=args.adapter_len)
+    model, tokenizer = Qwen2_5_Adapter(args.model_name, adapter_layer=args.adapter_layer, adapter_len=args.adapter_len, is_type_qwen_adapter=args.is_type_qwen_adapter)
+    if model is None:
+        print("Error loading model.")
+        return
 
     # Load datasets
     train_df = pd.read_csv(args.train_file)
