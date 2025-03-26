@@ -287,7 +287,6 @@ class Qwen2Attention(nn.Module):
 
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
         attn_output = forward_linear_with_scale_and_bias(attn_output, self.o_proj, scale=self.o_scale, bias=self.o_bias)
-        attn_output = attn_output.transpose(1, 2).contiguous()
         return attn_output, attn_weights
 
 
