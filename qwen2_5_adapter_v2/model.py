@@ -3,8 +3,6 @@ from typing import Callable, List, Optional, Tuple, Union, Dict
 import torch
 from torch import nn
 from torch.nn import functional as F
-import fairscale.nn.model_parallel.initialize as fs_init
-from fairscale.nn.model_parallel.layers import ColumnParallelLinear, ParallelEmbedding, RowParallelLinear
 
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, DynamicCache, SlidingWindowCache, StaticCache
@@ -37,25 +35,25 @@ class Qwen2MLP(nn.Module):
         super().__init__()
         self.config = config
         self.hidden_size = config.hidden_size
-        self.intermediate_size = config.intermediate_size
-        mp_size = fs_init.get_model_parallel_world_size()
-        mp_rank = fs_init.get_model_parallel_rank()
+        self.intermediate_size = config.intermediate_size 
+        mp_size = 1
+        mp_rank = 0
         self.mp_dim_start = self.hidden_size // mp_size * mp_rank
         self.mp_dim_end = self.hidden_size // mp_size * (mp_rank + 1)
-        self.gate_proj = ColumnParallelLinear(self.hidden_size, self.intermediate_size, gather_output=False)
-        self.up_proj = ColumnParallelLinear(self.hidden_size, self.intermediate_size, gather_output=False)
-        self.down_proj = RowParallelLinear(self.intermediate_size, self.hidden_size, input_is_parallel=True)
+        self.gate_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
+        self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
+        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
         self.act_fn = ACT2FN[config.hidden_act]
 
         if config.add_bias:
-            self.gate_bias, self.up_bias = [nn.Parameter(torch.zeros([self.intermediate_size/mp_size])) for _ in range(2)]
+            self.gate_bias, self.up_bias = [nn.Parameter(torch.zeros((int(self.intermediate_size / mp_size),))) for _ in range(2)]
             self.down_bias = nn.Parameter(torch.zeros([self.hidden_size]))
         else:
             self.gate_bias, self.up_bias, self.down_bias = None, None, None
 
         if config.add_scale:
             self.gate_scale, self.up_scale = [nn.Parameter(torch.ones([self.hidden_size])) for _ in range(2)]
-            self.down_scale = nn.Parameter(torch.ones([self.intermediate_size/mp_size]))
+            self.down_scale = nn.Parameter(torch.ones((int(self.intermediate_size / mp_size),)))
         else:
             self.gate_scale, self.up_scale, self.down_scale = None, None, None
 
@@ -157,25 +155,22 @@ class Qwen2Attention(nn.Module):
         super().__init__()
         self.config = config
         self.layer_idx = layer_idx
-        self.n_local_heads = config.num_attention_heads / fs_init.get_model_parallel_world_size()
+        self.n_local_heads = config.num_attention_heads 
         self.head_dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
         self.num_key_value_groups = config.num_attention_heads // config.num_key_value_heads
         self.scaling = self.head_dim**-0.5
         self.attention_dropout = config.attention_dropout
         self.is_causal = True
-        # self.q_proj = nn.Linear(config.hidden_size, config.num_attention_heads * self.head_dim, bias=True)
-        # self.k_proj = nn.Linear(config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True)
-        # self.v_proj = nn.Linear(config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True)
-        # self.o_proj = nn.Linear(config.num_attention_heads * self.head_dim, config.hidden_size, bias=False)
-
-        self.q_proj = ColumnParallelLinear(config.hidden_size, config.num_attention_heads * self.head_dim, gather_output=False)
-        self.k_proj = ColumnParallelLinear(config.hidden_size, config.num_key_value_heads * self.head_dim, gather_output=False)
-        self.v_proj = ColumnParallelLinear(config.hidden_size, config.num_key_value_heads * self.head_dim, gather_output=False)
-        self.o_proj = RowParallelLinear(config.num_attention_heads * self.head_dim, config.hidden_size, input_is_parallel=True)
+        self.mp_rank = 0
+        
+        self.q_proj = nn.Linear(config.hidden_size, config.num_attention_heads * self.head_dim, bias=True)
+        self.k_proj = nn.Linear(config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True)
+        self.v_proj = nn.Linear(config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True)
+        self.o_proj = nn.Linear(config.num_attention_heads * self.head_dim, config.hidden_size, bias=False)
 
         self.gate_adapter = torch.nn.Parameter(torch.zeros(1, self.n_local_heads, 1, 1))
-        self.head_start = self.n_local_heads * fs_init.get_model_parallel_rank()
-        self.head_end = self.n_local_heads * (fs_init.get_model_parallel_rank() + 1)
+        self.head_start = self.n_local_heads * self.mp_rank
+        self.head_end = self.n_local_heads * (self.mp_rank + 1)
 
         self.cache_enabled = False
         self.cache_k, self.cache_v = None, None
