@@ -141,14 +141,10 @@ def eager_attention_forward(
     return attn_output, attn_weights
 
 def forward_linear_with_scale_and_bias(x, module, scale=None, bias=None):
-    x = module(x)
     if scale is not None:
-        while scale.dim() < x.dim():
-            scale = scale.unsqueeze(0)
         x = x * scale
+    x = module(x)
     if bias is not None:
-        while bias.dim() < x.dim():
-            bias = bias.unsqueeze(0)
         x = x + bias
     return x
 
