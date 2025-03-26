@@ -178,7 +178,7 @@ class Qwen2Attention(nn.Module):
         if config.add_bias:
             self.q_bias = nn.Parameter(torch.zeros([self.n_local_heads*self.head_dim]))
             self.k_bias, self.v_bias = [
-                nn.Parameter(torch.zeros([self.num_key_value_heads*self.head_dim])) for _ in range(2)
+                nn.Parameter(torch.zeros([config.num_key_value_heads*self.head_dim])) for _ in range(2)
             ]
             self.o_bias = nn.Parameter(torch.zeros([config.hidden_size]))
         else:
