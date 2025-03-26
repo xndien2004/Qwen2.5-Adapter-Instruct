@@ -136,7 +136,7 @@ def eager_attention_forward(
     attn_weights = F.softmax(attn_weights.float(), dim=-1).to(query.dtype) 
     attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
     attn_output = torch.matmul(attn_weights, value_states)
-    attn_output = attn_output.transpose(1, 2).contiguous()
+    # attn_output = attn_output.transpose(1, 2).contiguous()
 
     return attn_output, attn_weights
 
