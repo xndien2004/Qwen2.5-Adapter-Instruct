@@ -43,8 +43,9 @@ def Qwen2_5_Adapter(model_name: str, adapter_len: int = 64, adapter_layer: int =
             requires_grad = (
                 "adapter_query" in name
                 or "gate_adapter" in name
+                or (is_type_qwen_adapter == "v2" and "norm" in name)
                 or name.endswith(".added_bias")
-                or name.endswith(".added_scale")
+                or name.endswith(".added_scale") 
             )
 
             if requires_grad:
