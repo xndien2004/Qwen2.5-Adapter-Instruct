@@ -55,7 +55,8 @@ def get_training_args(args) -> TrainingArguments:
         max_grad_norm=0.5,  
         dataloader_pin_memory=False,
         dataloader_num_workers=2,
-        report_to=["none"]
+        report_to=["none"],
+        evaluation_strategy="no",
     )
 
 
