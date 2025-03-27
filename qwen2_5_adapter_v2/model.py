@@ -254,8 +254,8 @@ class Qwen2Attention(nn.Module):
                 self.cache_v = value_states
             else:
                 assert self.cache_k.size(2) >= start_pos
-                self.cache_k = torch.cat([self.cache_k[:, :, :start_pos, :], key_states], dim=2)
-                self.cache_v = torch.cat([self.cache_v[:, :, :start_pos, :], value_states], dim=2)
+                self.cache_k = torch.cat([self.cache_k, key_states], dim=2)
+                self.cache_v = torch.cat([self.cache_v, value_states], dim=2)
                 key_states, value_states = self.cache_k, self.cache_v
         attn_output, attn_weights = attention_interface(
             self,
@@ -280,8 +280,7 @@ class Qwen2Attention(nn.Module):
                 scaling=self.scaling,
                 sliding_window=sliding_window,  # main diff with Llama
                 **kwargs,
-            )
-            print("gate_adapter:", self.gate_adapter.mean().item())
+            ) 
             attn_output += self.gate_adapter[
                 :, self.head_start : self.head_end
             ].tanh().half()*attn_output_adapter
