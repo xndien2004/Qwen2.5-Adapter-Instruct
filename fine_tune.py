@@ -31,6 +31,7 @@ def parse_args():
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--learning_rate", type=float, default=1e-4)  
     parser.add_argument("--is_type_qwen_adapter", type=str, default="v1", help="Adapter type")
+    parser.add_argument("--use_model_origin", type=int, default=0, help="Use original model")
     return parser.parse_args()
 
 
@@ -64,7 +65,7 @@ def main():
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    model, tokenizer = Qwen2_5_Adapter(args.model_name, adapter_layer=args.adapter_layer, adapter_len=args.adapter_len, is_type_qwen_adapter=args.is_type_qwen_adapter)
+    model, tokenizer = Qwen2_5_Adapter(args.model_name, adapter_layer=args.adapter_layer, adapter_len=args.adapter_len, is_type_qwen_adapter=args.is_type_qwen_adapter, use_model_origin=args.use_model_origin)
     if model is None:
         print("Error loading model.")
         return

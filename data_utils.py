@@ -44,7 +44,7 @@ def preprocess_fact_verification(
             "Your answer must include the classification label and a complete sentence from the context as evidence to justify your decision.\n"
             "Note: The evidence must be a full sentence, not a partial sentence or a fragment.\n"
             "Answer format:\n"
-            "Answer: The claim is classified as <LABEL>. The evidence is: <EVIDENCE>.\n\n"
+            "Answer: The claim is classified as <LABEL>. The evidence is: <EVIDENCE>\n\n"
             f"Provided data:\nContext: {context}\nClaim: {claim}"
         )
 
@@ -54,8 +54,6 @@ def preprocess_fact_verification(
         target += [im_start] + [IGNORE_TOKEN_ID] * (len(system) - 3) + [im_end] + nl_tokens
 
         # Add user prompt
-        # print("user:", tokenizer(roles["user"]).input_ids)
-        # print("im_start:", im_start)
         user_msg = [im_start] + nl_tokens + tokenizer(system_prompt).input_ids + [im_end] + nl_tokens
         input_id += user_msg
         target += [im_start] + [IGNORE_TOKEN_ID] * (len(user_msg) - 3) + [im_end] + nl_tokens
@@ -82,8 +80,6 @@ def preprocess_fact_verification(
 
     input_ids_tensor = torch.tensor(input_ids_list, dtype=torch.int)
     targets_tensor = torch.tensor(targets_list, dtype=torch.long)
-    # print(input_ids_tensor)
-    # print(targets_tensor)
 
     return dict(
         input_ids=input_ids_tensor,
