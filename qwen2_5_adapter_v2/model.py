@@ -281,7 +281,9 @@ class Qwen2Attention(nn.Module):
                 sliding_window=sliding_window,  # main diff with Llama
                 **kwargs,
             )
-            attn_output += self.gate_adapter.tanh().half()*attn_output_adapter
+            attn_output += self.gate_adapter[
+                :, self.head_start : self.head_end
+            ].tanh().half()*attn_output_adapter
 
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
         attn_output = forward_linear_with_scale_and_bias(attn_output, self.o_proj, scale=self.o_scale, bias=self.o_bias)
