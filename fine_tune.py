@@ -46,7 +46,7 @@ def get_training_args(args) -> TrainingArguments:
         fp16=False,
         evaluation_strategy="epoch",  
         save_strategy="epoch",           
-        # save_total_limit=3,
+        save_total_limit=3,
         logging_steps=10,
         optim="adamw_torch",
         lr_scheduler_type="cosine",
