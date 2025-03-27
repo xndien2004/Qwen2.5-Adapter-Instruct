@@ -46,7 +46,7 @@ def get_training_args(args) -> TrainingArguments:
         fp16=False,
         evaluation_strategy="epoch",  
         save_strategy="epoch",           
-        save_total_limit=3,
+        # save_total_limit=3,
         logging_steps=10,
         optim="adamw_torch",
         lr_scheduler_type="cosine",
@@ -55,11 +55,7 @@ def get_training_args(args) -> TrainingArguments:
         max_grad_norm=0.5,  
         dataloader_pin_memory=False,
         dataloader_num_workers=2,
-        report_to=["none"],
-
-        save_best_model_at_end=True,  
-        metric_for_best_model="eval_loss",
-        greater_is_better=False
+        report_to=["none"]
     )
 
 
