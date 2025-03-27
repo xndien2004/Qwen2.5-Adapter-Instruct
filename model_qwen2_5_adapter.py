@@ -38,19 +38,20 @@ def Qwen2_5_Adapter(model_name: str, adapter_len: int = 64, adapter_layer: int =
         ).to("cuda")
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 
-    for name, param in model.named_parameters():
-        requires_grad = (
-            "adapter_query" in name
-            or "gate_adapter" in name
-            or name.endswith(".added_bias")
-            or name.endswith(".added_scale")
-        )
+    if use_model_origin == 0:
+        for name, param in model.named_parameters():
+            requires_grad = (
+                "adapter_query" in name
+                or "gate_adapter" in name
+                or name.endswith(".added_bias")
+                or name.endswith(".added_scale")
+            )
 
-        if requires_grad:
-            param.data = param.data.float() 
-            param.requires_grad = True
-        else:
-            param.requires_grad = False
+            if requires_grad:
+                param.data = param.data.float() 
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
