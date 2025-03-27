@@ -172,7 +172,7 @@ class Qwen2Attention(nn.Module):
         self.head_start = self.n_local_heads * self.mp_rank
         self.head_end = self.n_local_heads * (self.mp_rank + 1)
 
-        self.cache_enabled = True
+        self.cache_enabled = False
         self.cache_k, self.cache_v = None, None
 
         if config.add_bias:
@@ -191,6 +191,13 @@ class Qwen2Attention(nn.Module):
             self.o_scale = nn.Parameter(torch.ones([self.n_local_heads*self.head_dim]))
         else:
             self.q_scale, self.k_scale, self.v_scale, self.o_scale = None, None, None, None
+
+    def cache_enabled(self):
+        self.cache_enabled = True
+
+    def disable_cache(self):
+        self.cache_enabled = False
+        self.cache_k, self.cache_v = None, None
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -818,6 +825,14 @@ class Qwen2Model(Qwen2PreTrainedModel):
                     padding_mask, min_dtype
                 )
         return causal_mask
+    
+    def cache_enabled(self):
+        for layer in self.layers:
+            layer.cache_enabled()
+
+    def disable_cache(self):
+        for layer in self.layers:
+            layer.disable_cache()
 
 
 class KwargsForCausalLM(FlashAttentionKwargs, LossKwargs): ...
@@ -948,3 +963,9 @@ class Qwen2AdapterV2ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
+    
+    def cache_enabled(self):
+        self.model.cache_enabled()
+
+    def disable_cache(self):
+        self.model.disable_cache()
