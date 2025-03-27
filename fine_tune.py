@@ -55,7 +55,11 @@ def get_training_args(args) -> TrainingArguments:
         max_grad_norm=0.5,  
         dataloader_pin_memory=False,
         dataloader_num_workers=2,
-        report_to=["none"]
+        report_to=["none"],
+
+        save_best_model_at_end=True,  
+        metric_for_best_model="eval_loss",
+        greater_is_better=False
     )
 
 
