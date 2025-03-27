@@ -281,6 +281,7 @@ class Qwen2Attention(nn.Module):
                 sliding_window=sliding_window,  # main diff with Llama
                 **kwargs,
             )
+            print("gate_adapter:", self.gate_adapter.mean().item())
             attn_output += self.gate_adapter[
                 :, self.head_start : self.head_end
             ].tanh().half()*attn_output_adapter
