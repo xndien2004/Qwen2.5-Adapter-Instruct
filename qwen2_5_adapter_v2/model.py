@@ -172,7 +172,7 @@ class Qwen2Attention(nn.Module):
         self.head_start = self.n_local_heads * self.mp_rank
         self.head_end = self.n_local_heads * (self.mp_rank + 1)
 
-        self.cache_enabled = False
+        self.cache_enabled = True
         self.cache_k, self.cache_v = None, None
 
         if config.add_bias:
@@ -254,8 +254,8 @@ class Qwen2Attention(nn.Module):
                 self.cache_v = value_states
             else:
                 assert self.cache_k.size(2) >= start_pos
-                self.cache_k = torch.cat([self.cache_k, key_states], dim=2)
-                self.cache_v = torch.cat([self.cache_v, value_states], dim=2)
+                self.cache_k = torch.cat([self.cache_k[:, :, :start_pos, :], key_states], dim=2)
+                self.cache_v = torch.cat([self.cache_v[:, :, :start_pos, :], value_states], dim=2)
                 key_states, value_states = self.cache_k, self.cache_v
         attn_output, attn_weights = attention_interface(
             self,
