@@ -29,7 +29,7 @@ def preprocess(
                 truncation=True,
             )
         )
-    input_ids = torch.tensor(texts, dtype=torch.int)
+    input_ids = torch.tensor(texts, dtype=torch.long)
     target_ids = input_ids.clone()
     target_ids[target_ids == tokenizer.pad_token_id] = IGNORE_TOKEN_ID
     attention_mask = input_ids.ne(tokenizer.pad_token_id)
