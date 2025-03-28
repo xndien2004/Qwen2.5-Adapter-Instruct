@@ -44,7 +44,7 @@ def get_training_args(args) -> TrainingArguments:
         learning_rate=args.learning_rate,
         bf16=True,
         fp16=False,
-        evaluation_strategy="epoch",  
+        evaluation_strategy="no",  
         save_strategy="epoch",           
         save_total_limit=3,
         logging_steps=10,
@@ -55,8 +55,7 @@ def get_training_args(args) -> TrainingArguments:
         max_grad_norm=0.5,  
         dataloader_pin_memory=False,
         dataloader_num_workers=2,
-        report_to=["none"],
-        evaluation_strategy="no",
+        report_to=["none"], 
     )
 
 
