@@ -2,11 +2,10 @@
 import os
 import torch
 import transformers
-from typing import Dict
-from transformers import LabelSmoother 
+from typing import Dict 
 from torch.utils.data import Dataset
 
-IGNORE_TOKEN_ID = LabelSmoother.ignore_index
+IGNORE_TOKEN_ID = -100
 TEMPLATE = "{% for message in messages %}{% if loop.first and messages[0]['role'] != 'system' %}{{ 'system\nYou are an AI assistant specializing in verifying the accuracy of information in Vietnamese.\n' }}{% endif %}{{'' + message['role'] + '\n' + message['content']}}{% if loop.last %}{{ ''}}{% else %}{{ '\n' }}{% endif %}{% endfor %}"
 
 
