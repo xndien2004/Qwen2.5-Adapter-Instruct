@@ -1,6 +1,7 @@
 import argparse
 import torch
 import pandas as pd
+import json
 import numpy as np
 from transformers import (
     TrainingArguments,
@@ -71,10 +72,18 @@ def main():
         return
 
     # Load datasets
-    train_df = pd.read_csv(args.train_file)
-    val_df = pd.read_csv(args.val_file)
+    # train_df = pd.read_csv(args.train_file)
+    # val_df = pd.read_csv(args.val_file)
+    train_df = []
+    with open(args.train_file, "r") as f:
+        for line in f:
+            train_df.append(json.loads(line))
+    eval_data = []
+    with open(args.val_file, "r") as f:
+        for line in f:
+            eval_data.append(json.loads(line))
     train_dataset = FactVerificationDataset(train_df, tokenizer, max_len=args.max_length)
-    val_dataset = FactVerificationDataset(val_df, tokenizer, max_len=args.max_length)
+    val_dataset = FactVerificationDataset(eval_data, tokenizer, max_len=args.max_length)
 
     training_args = get_training_args(args)
 
