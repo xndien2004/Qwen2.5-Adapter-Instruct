@@ -31,29 +31,38 @@ Place fact-checking training data in the `data/` directory following this format
 
 ```json
 {
-    "claim": "Claim to be verified",
-    "context": "Relevant background information",
-    "label": "SUPPORTS/REFUTES/NEI",
-    "evidence": "Evidence supporting the conclusion"
+     "messages":[
+         {"role": "system", "content": "You are an AI assistant specializing in verifying the accuracy of information in Vietnamese."},
+         {"role": "user", "content": "Question: You are tasked with verifying the correctness of the following statement.\n We provide you with a claim and a context. Please classify the claim into one of three labels:\n - SUPPORTED: the evidence supports the claim;\n - REFUTED: the evidence contradicts the claim;\n - NEI: not enough information to decide.\n Your answer should include the classification label and the most relevant evidence sentence from the context.\n Remember, the evidence must be a full sentence, not part of a sentence or less than one sentence. Given a claim and context as follows:\n Context: {context}\n Claim: {claim}\n Answer: The claim is classified as <LABEL>. The evidence is: <EVIDENCE>"},
+         {"role": "assistant", "content": "Answer: The claim is classified as {verdict}. The evidence is: {evidence}"},
+    ],
+    "format": "chatml"
 }
 ```  
+For the SFT datasets, the raw JSONLINE file follows the following format:
+```bash
+{"messages": [sample1...], "format": "chatml"}
+{"messages": [sample2...], "format": "chatml"}
+{"messages": [sample3...], "format": "chatml"}
+```
 
 ### 2. Start Training  
 
 ```bash
 python3 -m fine_tune \
-    --model_name "Qwen/Qwen2.5-1.5B-Instruct" \
+    --model_name "Qwen/Qwen2.5-0.5B-Instruct" \
     --adapter_layer 12 \
-    --adapter_len 64 \
-    --max_length 512 \
-    --train_file "/kaggle/input/semviqa-data/data/evi/viwiki_train.csv" \
-    --val_file "/kaggle/input/semviqa-data/data/evi/viwiki_test.csv" \
-    --output_dir "adapter" \
+    --adapter_len 128 \
+    --max_length 768\
+    --train_file "/kaggle/input/viwikifc-process/chatml_viwikifc_train.jsonl" \
+    --val_file "/kaggle/input/viwikifc-process/chatml_viwikifc_test.jsonl" \
+    --output_dir "output" \
     --batch_size 4 \
     --gradient_accumulation_steps 1 \
-    --epochs 3 \
+    --epochs 4 \
     --learning_rate 5e-4 \
-    --is_type_qwen_adapter "v2"
+    --is_type_qwen_adapter "v2" \
+    --use_model_origin 0
 ```  
 
 ## License  
